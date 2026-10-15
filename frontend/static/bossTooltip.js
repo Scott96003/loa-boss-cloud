@@ -134,7 +134,7 @@ function buildDeathHistoryHtml_dh(data) {
           html += "<span class='dh-boss'>" + escapeHtml_dh(deathTime.bossName || "") + "</span>";
         }
         if (deathTime.isActive) {
-          html += "<span class='dh-badge'>目前</span>";
+          html += "<span class='dh-badge'>活動</span>";
         }
         html += "</div>";
       });

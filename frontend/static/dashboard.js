@@ -1049,6 +1049,9 @@ function showTooltip(event, data) {
           if ([1, 2].includes(deathTime.type || 0)) {
             msg += " " + (deathTime.bossName || "");
           }
+          if (deathTime.isActive) {
+            msg += "<span style='margin-left: 6px; padding: 0 5px; font-size: 10px; line-height: 16px; color: #fff; background: #ed4245; border-radius: 8px; display: inline-block; vertical-align: 1px;'>活動</span>";
+          }
           msg += "</div>";
         });
       } else {

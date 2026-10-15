@@ -20,307 +20,10 @@
     <link rel="stylesheet" href="./static/css/bossTooltip.css">
     <link rel="stylesheet" href="./static/css/auth.css?v=20261015_v5">
     <link rel="icon" type="image/png" href="./icon/favicon.ico">
-    <style>
-        :root {
-            --boss顏色-25: #20eebfd4;
-            --boss顏色-50: #6e96ddd4;
-            /* 一半 */
-            --boss顏色-75: #6529b4bd;
-            /* 3/4 */
-            --boss顏色-90: #a3306ae0;
-            /* 9/10 */
-            --boss-double: #9e2b2bc7;
-            /* 雙出 */
-        }
-
-        body {
-            font-size: 16px;
-            /* 設置整個頁面的字體大小 */
-            background-color: #000;
-            /* 黑色背景 */
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-        }
-
-        input,
-        button {
-            background-color: #333;
-            /* 深色背景 */
-            color: #f2f2f2;
-            /* 淡色字體 */
-            border: 1px solid #555;
-            /* 深灰色邊框 */
-        }
-
-        input::placeholder {
-            color: #aaa;
-            /* 淺灰色的提示文字 */
-        }
-
-        .boss顏色-25 {
-            background-color: var(--boss顏色-25);
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .boss顏色-50 {
-            background-color: var(--boss顏色-50);
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .boss顏色-75 {
-            background-color: var(--boss顏色-75);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .boss顏色-90 {
-            background-color: var(--boss顏色-90);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .over-time {
-            background-color: #d9d9d9;
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .double-boss {
-            background-color: var(--boss-double);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .message-container {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            max-height: 200px;
-            overflow-y: auto;
-            background-color: #222;
-            /* 深色背景 */
-            border-top: 1px solid #555;
-            /* 深灰色邊框 */
-            padding: 10px;
-            display: none;
-            resize: both;
-            overflow: auto;
-            z-index: 1000;
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-        }
-
-        .message-container:hover {
-            overflow: auto;
-        }
-
-        /* 針對包裹表格的 div 容器 */
-        .table-scroll-wrapper {
-            overflow-x: auto;
-            /* **關鍵！** 允許水平方向滾動 */
-
-            /* 確保這個容器本身不會超出螢幕，但允許內部內容溢出 */
-            max-width: 100%;
-            width: 100%;
-            /* 確保容器佔滿可用寬度 */
-
-            /* [選用] 為 iOS 設備提供更流暢的滾動體驗 */
-            -webkit-overflow-scrolling: touch;
-
-            /* [選用] 如果您的表格周圍有邊距，可能需要調整 */
-            margin-left: -15px;
-            /* 範例：如果父容器有 padding */
-            margin-right: -15px;
-            /* 範例：如果父容器有 padding */
-            padding-left: 15px;
-            /* 範例：為滾動區域預留空間 */
-            padding-right: 15px;
-            /* 範例：為滾動區域預留空間 */
-        }
-
-        /* 針對表格本身 */
-        #bossList {
-            /* **這是最重要的調整！** */
-            /* table-layout: auto; 是表格的預設行為，讓瀏覽器根據內容決定欄寬。 */
-            /* 但在某些佈局下可能會被覆蓋，明確設定有助於確保。 */
-            table-layout: auto;
-
-            /* **關鍵！** 讓表格的最小寬度至少與其內容所需寬度相同。 */
-            /* 這樣它就不會被壓縮，而會自然地變寬並溢出父容器。 */
-            min-width: fit-content;
-            /* 或者，如果 `min-width: fit-content;` 不起作用，您可以嘗試一個足夠大的固定寬度 */
-            /* min-width: 800px; */
-            /* 根據您的表格內容自行調整這個值，使其足夠寬 */
-
-            /* 確保表格不會被強制設定為 100% 寬度而壓縮 */
-            width: unset;
-            /* 移除任何可能強制表格為 100% 寬度的設定 */
-            /* 或者確保沒有 width: 100%; 樣式 */
-
-            margin-bottom: 320px;
-            /* 給表格底部留出空間，避免被 messageContainer 擋住 */
-        }
-
-        /* 確保 td 內容也不會被壓縮 */
-        #bossList th,
-        #bossList td {
-            white-space: nowrap;
-            /* **重要！** 防止單元格內容換行，強制其保持單行 */
-
-            /* 其他您的 td/th 樣式... */
-        }
-
-        #setting_container {
-            position: fixed;
-            top: 0px;
-            right: 0;
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-            text-align: right;
-            z-index: 1001;
-        }
-
-        #setting_container button {
-            /* 在這裡定義您想要套用於所有按鈕的新樣式 */
-            background-color: #007bff;
-            /* 範例：藍色背景 */
-            color: white;
-            /* 範例：白色文字 */
-            border: 1px solid #0056b3;
-            /* 範例：深藍色邊框 */
-            padding: 5px 5px;
-            /* 範例：內邊距 */
-            margin: 5px;
-            /* 範例：與上方的間距 */
-            cursor: pointer;
-            /* 範例：指標樣式 */
-            border-radius: 4px;
-            /* 範例：圓角 */
-            width: 100%;
-        }
-
-        /* 當螢幕寬度小於或等於 600px 時（通常作為手機的臨界點） */
-        @media (max-width: 600px) {
-
-            /* 手機專屬的樣式寫在這裡 */
-            #setting_container {
-                bottom: 0px;
-                top: unset;
-            }
-        }
-
-        .floating-message {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: #333;
-            /* 深灰色背景 */
-            color: #fff;
-            /* 白色字體 */
-            padding: 10px 20px;
-            border-radius: 5px;
-            display: none;
-            z-index: 9999;
-        }
-
-        .tooltip {
-            position: absolute;
-            background-color: #2f3051;
-            color: #fff;
-            /* 白色字體 */
-            padding: 5px;
-            border-radius: 5px;
-            z-index: 1002;
-        }
-
-
-        @keyframes blink {
-            0% {
-                background-color: rgba(255, 255, 0, 0.5);
-            }
-
-            /* 淡黃色 */
-            50% {
-                background-color: rgba(255, 255, 0, 0);
-            }
-
-            /* 完全透明 */
-            100% {
-                background-color: rgba(255, 255, 0, 0.5);
-            }
-
-            /* 淡黃色 */
-        }
-
-        .blinking {
-            animation: blink 2s infinite;
-            /* 將持續時間改為 2s */
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .draggable-header {
-            cursor: grab;
-            user-select: none;
-            /* 防止拖曳時文字被選取 */
-        }
-
-        .draggable-header.dragging {
-            opacity: 0.5;
-            border: 1px dashed #007bff;
-        }
-
-        .draggable-header.drag-over {
-            /* 拖曳經過時，顯示一個邊框來指示放置位置 */
-            border-left: 2px solid #007bff;
-        }
-
-        #dragonGateStatusDisplay {
-            white-space: pre-wrap;
-            /* 確保換行符 (\n) 能被正確顯示 */
-            font-size: 14px;
-        }
-
-        .flex-container {
-            display: flex;
-            /* 啟用 Flexbox 佈局 */
-            width: 100%;
-            /* 設置總寬度 */
-            padding: 10px;
-        }
-
-        .flex-container button {
-            padding: 2px;
-            margin: 2px;
-        }
-
-        #filterButtons button {
-            font-size: 18px;
-            margin: 3px;
-        }
-
-        .box {
-            flex: 1;
-            /* 關鍵：讓三個子元素平均佔據可用空間 */
-            /* flex: 1; 相當於 flex-grow: 1; flex-shrink: 1; flex-basis: 0; */
-
-            padding: 20px;
-            margin: 5px;
-            text-align: center;
-        }
-
-        .hidden {
-            /* 關鍵：將元素完全從頁面佈局中移除 */
-            display: none !important;
-        }
-    </style>
+    <link rel="stylesheet" href="./static/css/main.css?v=20261015_ui">
     <script type="text/javascript" src="./static/config.js?v=20261015_dragon_worker"></script>
     <script type="text/javascript" src="./static/auth.js?v=20261015_presence_fix"></script>
-    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_presence_fix"></script>
+    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_ui"></script>
     <script type="text/javascript" src="./static/init.js?v=20261015_review_fix"></script>
     <script type="text/javascript" src="./static/save.js?v=1"></script>
     <script type="text/javascript" src="./static/db.js"></script>
@@ -330,7 +33,7 @@
     <script type="text/javascript" src="./static/dashboard.js?v=20261015_sync_death"></script>
     <script type="text/javascript" src="./static/messageListen.js?v=20261015_dup_msg_fix"></script>
     <script type="text/javascript" src="./static/sendMessageToDiscord.js?v=20261015_death_fix"></script>
-    <script type="text/javascript" src="./static/onLoading.js?v=1"></script>
+    <script type="text/javascript" src="./static/onLoading.js?v=20261015_ui"></script>
     <script type="text/javascript" src="./static/dragonGate.js?v=20261015_dragon_worker"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_presence_status"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc_client.js?v=20261015_review_fix"></script>
@@ -360,7 +63,7 @@
                 <button id="btn_saveToDB">儲存資料</button>
                 <br>
                 <button id="btn_refresh">重整</button>
-                <div>
+                <div class="boss-legend">
                     <span style="color: var(--boss顏色-25)">重生已過1/4 </span>
                     <span style="color: var(--boss顏色-50)">重生已過1/2 </span>
                     <span style="color: var(--boss顏色-75)"> 重生已過3/4 </span>
@@ -368,9 +71,8 @@
                 </div>
             </div>
 
-            <div id="dragonGateStatusContainer"
-                style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
-                <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
+            <div id="dragonGateStatusContainer">
+                <h4>龍門狀態追蹤</h4>
                 <div id="dragonGateStatusDisplay"></div>
             </div>
             <div id="webrtc_div" style="display: none;">
@@ -378,7 +80,7 @@
         </div>
         <div id="reboot_message"></div>
         <div id="filterButtons">
-            <button data-boss-name="">顯示全部</button>
+            <button data-boss-name="" class="active">顯示全部</button>
             <button data-boss-name="1,2,91202,91605,91516">三大龍</button>
             <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962">魂塔長老</button>
             <button data-boss-name="81082,45685,45674,45625,45753">陣營Boss</button>

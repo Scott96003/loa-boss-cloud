@@ -1,0 +1,467 @@
+/* =========================================================
+   LOA-BOSS 主監控頁樣式（與登入頁 auth.css 共用同一套 Discord 風格配色）
+   ========================================================= */
+
+:root {
+    /* 基礎配色 */
+    --bg: #0f1117;
+    --surface: #18191c;
+    --surface-2: #202225;
+    --surface-hover: #26282d;
+    --border: #2f3136;
+    --border-strong: #3a3d44;
+    --text: #f2f3f5;
+    --text-muted: #b9bbbe;
+    --text-faint: #8e9297;
+    --primary: #5865f2;
+    --primary-hover: #4752c4;
+    --danger: #ed4245;
+    --success: #23a55a;
+    --accent: #a980ff;
+    --radius: 8px;
+    --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", Roboto, Helvetica, Arial, sans-serif;
+
+    /* 重生進度色（同時用於表格左側色條與設定區圖例） */
+    --boss顏色-25: #20eebf;
+    --boss顏色-50: #6e96dd;
+    --boss顏色-75: #9b6bff;
+    --boss顏色-90: #ff4f9a;
+    --boss-double: #e5484d;
+
+    /* 重生進度列底色（半透明，避免整列大色塊刺眼） */
+    --boss底色-25: rgba(32, 238, 191, 0.10);
+    --boss底色-50: rgba(110, 150, 221, 0.16);
+    --boss底色-75: rgba(155, 107, 255, 0.22);
+    --boss底色-90: rgba(255, 79, 154, 0.26);
+}
+
+body {
+    margin: 0;
+    padding: 12px 16px;
+    font-family: var(--font);
+    font-size: 15px;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- 共用表單元件 ---------- */
+input,
+button {
+    font-family: inherit;
+    font-size: 14px;
+    background-color: var(--surface-2);
+    color: var(--text);
+    border: 1px solid var(--border-strong);
+    border-radius: 6px;
+}
+
+input {
+    padding: 6px 10px;
+    margin: 3px 2px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+input:focus {
+    border-color: var(--primary);
+}
+
+input::placeholder {
+    color: var(--text-faint);
+}
+
+input[type="range"] {
+    padding: 0;
+    border: none;
+    background: transparent;
+    accent-color: var(--primary);
+}
+
+button {
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+}
+
+button:hover {
+    background-color: var(--surface-hover);
+    border-color: #4f535c;
+}
+
+button:active {
+    transform: translateY(1px);
+}
+
+/* ---------- 上方資訊區（設定面板 + 龍門狀態） ---------- */
+.flex-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    width: 100%;
+    padding: 0 0 10px 0;
+    box-sizing: border-box;
+}
+
+.flex-container button {
+    padding: 5px 12px;
+    margin: 3px 2px;
+}
+
+#setting_div {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+}
+
+#btn_resetData {
+    color: #f08a8c;
+}
+
+.boss-legend {
+    margin-top: 8px;
+    font-size: 13px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#dragonGateStatusContainer {
+    width: 300px;
+    padding: 10px 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-top: 3px solid #5e47a9;
+    border-radius: 10px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
+#dragonGateStatusContainer h4 {
+    margin: 0 0 6px 0;
+    color: var(--accent);
+    font-size: 15px;
+}
+
+#dragonGateStatusDisplay {
+    white-space: pre-wrap;
+    font-size: 14px;
+    color: var(--text-muted);
+}
+
+#reboot_message {
+    font-size: 13px;
+    color: var(--text-faint);
+    margin: 2px 0 8px 0;
+}
+
+/* ---------- 篩選按鈕列 ---------- */
+#filterButtons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+#filterButtons button {
+    font-size: 14px;
+    padding: 6px 14px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface);
+    border-color: var(--border-strong);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+#filterButtons button:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+}
+
+#filterButtons button.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+#filterButtons #trackBossNamesBtn {
+    border-color: rgba(245, 158, 11, 0.55);
+    color: #fbbf24;
+}
+
+#filterButtons #trackBossNamesBtn.active {
+    background: #f59e0b;
+    border-color: #f59e0b;
+    color: #111;
+}
+
+/* ---------- Boss 表格 ---------- */
+.table-scroll-wrapper {
+    overflow-x: auto;
+    max-width: 100%;
+    width: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+#bossList {
+    table-layout: auto;
+    min-width: fit-content;
+    width: unset;
+    border-collapse: separate;
+    border-spacing: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 320px;
+    /* 給表格底部留出空間，避免被 messageContainer 擋住 */
+}
+
+#bossList th,
+#bossList td {
+    white-space: nowrap;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+#bossList thead th {
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    letter-spacing: 0.02em;
+}
+
+#bossList tbody tr:last-child td {
+    border-bottom: none;
+}
+
+#bossList tbody tr {
+    transition: background-color 0.2s;
+}
+
+#bossList tbody tr:hover td {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+/* 第一欄左側保留色條位置，依重生進度上色 */
+#bossList tbody td:first-child {
+    box-shadow: inset 3px 0 0 transparent;
+}
+
+#bossList td button {
+    font-size: 12px;
+    padding: 3px 10px;
+    margin: 0 2px;
+}
+
+#bossList td button[id^="delete_"] {
+    color: #f08a8c;
+}
+
+#bossList td button[id^="delete_"]:hover {
+    background: rgba(237, 66, 69, 0.15);
+    border-color: var(--danger);
+}
+
+#bossList td button.trackBtn:hover {
+    background: rgba(88, 101, 242, 0.18);
+    border-color: var(--primary);
+}
+
+/* 重生進度列（由 dashboard.js 設定在 tr 上） */
+.boss顏色-25 { background-color: var(--boss底色-25); }
+.boss顏色-50 { background-color: var(--boss底色-50); }
+.boss顏色-75 { background-color: var(--boss底色-75); }
+.boss顏色-90 { background-color: var(--boss底色-90); }
+
+#bossList tbody tr.boss顏色-25 td:first-child { box-shadow: inset 3px 0 0 var(--boss顏色-25); }
+#bossList tbody tr.boss顏色-50 td:first-child { box-shadow: inset 3px 0 0 var(--boss顏色-50); }
+#bossList tbody tr.boss顏色-75 td:first-child { box-shadow: inset 3px 0 0 var(--boss顏色-75); }
+#bossList tbody tr.boss顏色-90 td:first-child { box-shadow: inset 3px 0 0 var(--boss顏色-90); }
+
+.over-time {
+    background-color: rgba(217, 217, 217, 0.12);
+}
+
+.double-boss {
+    background-color: rgba(229, 72, 77, 0.22);
+}
+
+/* 超過重生時間的儲存格：柔和的琥珀色脈動 */
+@keyframes blink {
+    0%   { background-color: rgba(251, 191, 36, 0.38); }
+    50%  { background-color: rgba(251, 191, 36, 0.04); }
+    100% { background-color: rgba(251, 191, 36, 0.38); }
+}
+
+.blinking {
+    animation: blink 2s infinite;
+    color: #fff;
+}
+
+/* 表頭拖曳 */
+.draggable-header {
+    cursor: grab;
+    user-select: none;
+}
+
+.draggable-header.dragging {
+    opacity: 0.5;
+    outline: 1px dashed var(--primary);
+}
+
+.draggable-header.drag-over {
+    box-shadow: inset 2px 0 0 var(--primary);
+}
+
+/* ---------- 右上角控制區 ---------- */
+#setting_container {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    width: 88px;
+    padding: 6px;
+    box-sizing: border-box;
+    background: rgba(17, 20, 28, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: center;
+    z-index: 1001;
+}
+
+#setting_container button {
+    display: block;
+    width: 100% !important;
+    margin: 0 0 5px 0;
+    padding: 5px 0;
+    font-size: 13px;
+    background: var(--surface-2);
+}
+
+#setting_container button:hover {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+#setting_container br {
+    display: none;
+}
+
+#setting_container input[type="range"] {
+    width: 100% !important;
+    margin: 2px 0 4px 0;
+}
+
+#percentageDisplay {
+    color: var(--text);
+    font-weight: 600;
+}
+
+#versionSpan {
+    display: block;
+    color: var(--text-faint);
+    font-size: 11px;
+}
+
+/* 手機：控制區移到右下角 */
+@media (max-width: 600px) {
+    body {
+        padding: 8px 10px;
+    }
+
+    #setting_container {
+        top: unset;
+        bottom: 8px;
+    }
+
+    #filterButtons {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        padding-bottom: 4px;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    #filterButtons::-webkit-scrollbar {
+        display: none;
+    }
+
+    #dragonGateStatusContainer {
+        width: 100%;
+    }
+}
+
+/* ---------- 底部訊息區 ---------- */
+.message-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    max-height: 200px;
+    box-sizing: border-box;
+    background-color: rgba(17, 19, 24, 0.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--border-strong);
+    padding: 10px 16px;
+    display: none;
+    resize: both;
+    overflow: auto;
+    z-index: 1000;
+    color: var(--text-muted);
+    font-size: 13px;
+}
+
+/* ---------- 浮動提示與 tooltip ---------- */
+.floating-message {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: var(--surface);
+    border: 1px solid var(--border-strong);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+    color: var(--text);
+    padding: 12px 22px;
+    border-radius: 10px;
+    display: none;
+    z-index: 9999;
+}
+
+.tooltip {
+    position: absolute;
+    background-color: #1e2030;
+    border: 1px solid #34375a;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    z-index: 1002;
+}
+
+/* ---------- 行動裝置語音解鎖遮罩 ---------- */
+#tts-unlock-button {
+    background-color: var(--primary) !important;
+}
+
+.box {
+    flex: 1;
+    padding: 20px;
+    margin: 5px;
+    text-align: center;
+}
+
+.hidden {
+    display: none !important;
+}

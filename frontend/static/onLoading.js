@@ -162,6 +162,10 @@ document.addEventListener("DOMContentLoaded", function () {
 document.addEventListener("DOMContentLoaded", function () {
     var buttonsContainer = document.getElementById("filterButtons");
     buttonsContainer.addEventListener("click", function (event) {
+        if (event.target.tagName === "BUTTON") {
+            buttonsContainer.querySelectorAll("button.active").forEach(btn => btn.classList.remove("active"));
+            event.target.classList.add("active");
+        }
         if (event.target.id === "trackBossNamesBtn") {
             console.log("trackBossNamesBtn");
             toggleTrackBossNames();

@@ -274,7 +274,7 @@
             #discordHeaderBar {
                 position: fixed;
                 top: 8px;
-                right: 96px;
+                right: 104px;
                 display: flex;
                 align-items: center;
                 gap: 8px;

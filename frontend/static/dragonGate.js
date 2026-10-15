@@ -247,6 +247,10 @@ function updateDragonGateDisplay() {
         // 使用 innerHTML 來渲染表格
         displayElement.innerHTML = statusHTML;
     }
+    const containerElement = document.getElementById('dragonGateStatusContainer');
+    if (containerElement) {
+        containerElement.classList.toggle('gate-open', statusHTML.includes('開啟中'));
+    }
 }
 
 function 抓取所有龍的死亡時間() {

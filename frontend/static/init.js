@@ -13,6 +13,8 @@ function initializeVoiceSettings() {
     if (slider && display) {
         slider.value = config.voiceCount;
         display.textContent = `${config.voiceCount}%`;
+        const volumeBtnLabel = document.getElementById("volumeBtnLabel");
+        if (volumeBtnLabel) volumeBtnLabel.textContent = `${config.voiceCount}%`;
     }
 }
 

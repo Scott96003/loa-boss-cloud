@@ -62,9 +62,38 @@ document.addEventListener("DOMContentLoaded", function () {
     slider = document.getElementById("percentageSlider");
     display = document.getElementById("percentageDisplay");
 
+    // 手機版：訊息區預設收起，避免遮住表格
+    var isNarrowScreen = window.matchMedia("(max-width: 600px)").matches;
+    if (isNarrowScreen) {
+        document.getElementById('messageContainer').classList.add('hidden');
+    }
+
     // 訊息按鈕
     document.getElementById('toggleMessageContainer').addEventListener('click', function () {
-        document.getElementById('messageContainer').classList.toggle('hidden');
+        var container = document.getElementById('messageContainer');
+        container.classList.toggle('hidden');
+        if (!container.classList.contains('hidden')) {
+            this.classList.remove('has-unread');
+            container.scrollTop = container.scrollHeight;
+        }
+    });
+
+    // 手機版音量按鈕：點擊開關音量滑桿，點其他地方自動收起
+    var volumeControl = document.getElementById('volumeControl');
+    document.getElementById('toggleVolumeBtn').addEventListener('click', function (event) {
+        event.stopPropagation();
+        volumeControl.classList.toggle('open');
+    });
+    volumeControl.addEventListener('click', function (event) {
+        event.stopPropagation();
+    });
+    document.addEventListener('click', function () {
+        volumeControl.classList.remove('open');
+    });
+
+    // 手機版龍門橫幅：點擊展開詳細狀態
+    document.getElementById('dragonGateStatusContainer').addEventListener('click', function () {
+        this.classList.toggle('expanded');
     });
 
 
@@ -110,6 +139,7 @@ document.addEventListener("DOMContentLoaded", function () {
     slider.addEventListener("input", () => {
         config.voiceCount = parseInt(slider.value, 10);
         display.textContent = `${config.voiceCount}%`;
+        document.getElementById("volumeBtnLabel").textContent = `${config.voiceCount}%`;
         // 音量為個人設定，調整後立即存檔，不等延遲存檔
         localStorage.setItem("voiceCount", config.voiceCount);
     });

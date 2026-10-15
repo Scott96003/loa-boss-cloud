@@ -167,6 +167,8 @@ function addBossTR(data) {
           buttonName = "追蹤";
         }
         cellContent += "<button class='trackBtn' id='track_" + encodeURIComponent(data.bossName) + "'>" + buttonName + "</button>";
+        // 手機卡片模式用：展開次要欄位與刪除按鈕
+        cellContent += "<button class='moreBtn' title='更多'>⋯</button>";
         break;
       case 'computed':
         // 計算欄位初始設置為空，將由 refresh 函式更新
@@ -175,6 +177,9 @@ function addBossTR(data) {
     }
 
     cell.innerHTML = cellContent;
+
+    // 標記欄位 key，供手機卡片版面以 CSS 定位各欄
+    cell.setAttribute('data-col-key', config.key);
 
     // 設置 cell id 或 class 以便在 updateBossRemainingTime 中快速定位
     if (config.cellId) {
@@ -219,6 +224,12 @@ function addBossTR(data) {
       if (trackBtn) {
         trackBtn.addEventListener("click", function () {
           trackBoss(this);
+        });
+      }
+      var moreBtn = cell.querySelector(".moreBtn");
+      if (moreBtn) {
+        moreBtn.addEventListener("click", function () {
+          newRow.classList.toggle("expanded");
         });
       }
     }
@@ -488,7 +499,8 @@ function updateBossRemainingTime(bossID = 0) {
 
     // 判斷 Boss 出現的機率並設定行樣式
     let bossUprate = Math.abs(100 - percentage) + (bossData.respawnCount > getBossCount(bossData) ? 50 : 0)
-    row.className = ''
+    // 重設進度顏色，但保留手機卡片的展開狀態
+    row.className = row.classList.contains('expanded') ? 'expanded' : ''
     if (bossData.respawnCount > 0) {
       if (bossUprate >= 90) {
         if (!row.classList.contains('boss顏色-90')) {
@@ -1110,6 +1122,12 @@ function drawMessage(message) {
   p.style.margin = "2px 0";
   container.appendChild(p);
   messageCount++;
+
+  // 訊息區收起時，在切換按鈕上標示有新訊息
+  if (container.classList.contains('hidden')) {
+    const toggleBtn = document.getElementById('toggleMessageContainer');
+    if (toggleBtn) toggleBtn.classList.add('has-unread');
+  }
 
   // 同步維護 config.messageList (最多保留 10,000 筆)
   if (Array.isArray(config.messageList)) {

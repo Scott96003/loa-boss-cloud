@@ -229,6 +229,7 @@ function buildDiscordTableRow(item, now, spawnTime, rebootTime) {
     spawnTime,
     guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
     death: latestDeath,
+    elapsedMs: elapsed,
     已死亡: formatTimeDifference(elapsed)
   };
 }
@@ -1221,27 +1222,10 @@ export class BossRoom {
         refreshBossComputedFields(boss, rebootTime, now);
       });
 
-      // 排序：被擊殺的長老置頂於清單第一筆，其餘長老按 ELDER_BOSS_IDS 順序排列
-      const killedBossId = Number(deathInfo.id) % 100000;
-      const sortedElders = [];
-
-      const killedElder = elderBosses.find(b => Number(b.id) % 100000 === killedBossId);
-      if (killedElder) {
-        sortedElders.push(killedElder);
-      }
-
-      ELDER_BOSS_IDS.forEach(id => {
-        if (id !== killedBossId) {
-          const elder = elderBosses.find(b => Number(b.id) % 100000 === id);
-          if (elder) {
-            sortedElders.push(elder);
-          }
-        }
-      });
-
-      const elderData = sortedElders.map(item =>
-        buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, 7), rebootTime)
-      );
+      // 排序：剩餘數量多者優先，數量相同時距離上次死亡最久者優先
+      const elderData = elderBosses
+        .map(item => buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, 7), rebootTime))
+        .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0) || b.elapsedMs - a.elapsedMs);
 
       // 3. 格式化等寬表格與活動統計字串
       const tableMsg = formatTableForDiscord(elderData, true);

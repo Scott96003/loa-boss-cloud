@@ -108,12 +108,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // 監聽拉條值的變化
     slider.addEventListener("input", () => {
-        config.voiceCount = slider.value;
+        config.voiceCount = parseInt(slider.value, 10);
         display.textContent = `${config.voiceCount}%`;
-        // 將數值傳遞給其他地方使用（例如其他 JavaScript 函式）
-        // 在這裡您可以執行您想要的操作
-        // 例如：將百分比值傳遞給其他函式或存儲在變數中
-        // 例如：myFunction(percentage);
+        // 音量為個人設定，調整後立即存檔，不等延遲存檔
+        localStorage.setItem("voiceCount", config.voiceCount);
     });
 
 

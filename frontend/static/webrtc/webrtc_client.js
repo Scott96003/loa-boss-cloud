@@ -106,10 +106,6 @@ function webRTC_handleMessage(peerId, received) {
     }
 }
 
-for (const [key, value] of Object.entries(WEBHook_URL)) {
-    WEBHook_URL[key] = ""
-}
-
 // 主動自 Cloudflare Worker API 獲取雲端最新 Boss 狀態
 async function initFetchBossDataFromCloud() {
     try {

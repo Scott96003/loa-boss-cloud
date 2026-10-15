@@ -193,9 +193,4 @@ function addMessage(bossData) {
   config.messageList.push(message);
   drawMessage(message);
   showfloatingMessage(message);
-
-
-  setTimeout(() => {
-    SendToDC(parseInt(bossData.id));
-  }, 1000);
 }

@@ -13,14 +13,3 @@ const WEBRTC_WS_URL_OVERRIDE = USE_LOCAL_WORKER
     ? 'ws://localhost:8787/ws'
     : 'wss://loa-boss-worker.f96003.workers.dev/ws';
 
-
-// Discord Webhook 網址屬於機密，不可寫在公開的前端檔案中。
-// 輪迴刷新、長老擊殺與龍門通知已改由 Cloudflare Worker 以 wrangler secret 發送；
-// 留空時 sendTextWebhook 會直接略過。
-const WEBHook_URL = {
-    all: "",
-    長老: "",
-    奧塔: "",
-    陣營: "",
-    野外: ""
-}

@@ -113,66 +113,15 @@ function loadEarlierMessages(batchSize = 200) {
 }
 
 /**
- * 取得「上一個星期二的 12:02:00」作為基準時間。
- * * 例如：如果今天是 2025/10/26 (日)，則會返回 2025/10/21 (二) 12:02:00。
- * 如果今天是 2025/10/21 (二) 15:00:00，則會返回 2025/10/21 (二) 12:02:00。
- * 如果今天是 2025/10/21 (二) 10:00:00，則會返回 2025/10/14 (二) 12:02:00。
- * * @returns {Date} 上個星期二 12:02 的 Date 物件。
- */
-function getLastTuesdayAt1202() {
-    const now = new Date();
-    const dayOfWeek = now.getDay(); // 0 (日) 到 6 (六)
-
-    // 星期二的數字是 2。計算需要倒退的天數。
-    // 如果今天是星期三 (3)，則倒退 1 天。
-    // 如果今天是星期二 (2)，需要檢查時間。
-    // 如果今天是星期一 (1)，則倒退 6 天 (到上個星期二)。
-    let daysToSubtract = dayOfWeek - 2;
-
-    // 如果今天是星期日(0)或星期一(1)，需要跨越整個星期，所以要多減 7 天或 6 天。
-    if (dayOfWeek === 0) {
-        // 星期日 (0) 到星期二 (2) 需要倒退 5 天
-        daysToSubtract = 5;
-    } else if (dayOfWeek === 1) {
-        // 星期一 (1) 到星期二 (2) 需要倒退 6 天
-        daysToSubtract = 6;
-    } else if (dayOfWeek >= 2) {
-        // 星期二(2)到星期六(6)
-        daysToSubtract = dayOfWeek - 2;
-    }
-
-    // 建立一個新的日期物件，並根據需要倒退天數
-    const baseDate = new Date(now);
-    baseDate.setDate(now.getDate() - daysToSubtract);
-
-    // 設置為 12:02:00
-    baseDate.setHours(12, 2, 0, 0);
-
-    // 額外檢查：如果當前時間在星期二 12:02 之後，但算出來的日期是下一個星期二，
-    // 或者如果今天是星期二，但計算結果是上上星期二，
-    // 最簡單的方式是：如果計算出的時間比當前時間晚，則倒退一週。
-    // 但因為上面的邏輯已經處理了大部分情況，只需處理「今天就是星期二但時間還沒到 12:02」的情況。
-    if (dayOfWeek === 2) {
-        // 只有當今天是星期二，並且當前時間早於 12:02 時，才需要倒退到上一個星期二
-        if (now.getHours() < 12 || (now.getHours() === 12 && now.getMinutes() < 2)) {
-            baseDate.setDate(baseDate.getDate() - 7);
-        }
-    }
-
-
-    return baseDate;
-}
-
-/**
  * 處理重啟時間 (rebootTime) 的邏輯
  */
 function initializeRebootTime() {
-    // 獲取基準時間
-    const lastTuesdayAt1202 = getLastTuesdayAt1202();
+    // 先沿用上次從雲端同步並存下的重啟時間，之後由 loadAndInitializeBossData 以雲端最新值覆蓋
     const storedRebootTimeValue = localStorage.getItem("rebootTime");
-
-    const storedRebootTime = new Date(storedRebootTimeValue || lastTuesdayAt1202);
-    config.rebootTime = storedRebootTime;
+    const storedRebootTime = new Date(storedRebootTimeValue);
+    if (storedRebootTimeValue && !isNaN(storedRebootTime.getTime())) {
+        config.rebootTime = storedRebootTime;
+    }
     document.getElementById("reboot_message").innerHTML = "重新開機時間：" + config.rebootTime.toLocaleString('zh-tw', { hour12: false });
 }
 

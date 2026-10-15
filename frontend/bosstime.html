@@ -1,10 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <!-- 立即執行前端路由前置守衛：若未登入，立刻中斷並跳轉至 index.html，不載入後續任何核心業務資源 -->
+    <script>
+        (function() {
+            var params = new URLSearchParams(window.location.search);
+            if (params.get("code")) return;
+            var token = localStorage.getItem("loa_boss_auth_token") || localStorage.getItem("loa_boss_auth_jwt");
+            if (!token) {
+                window.location.replace("index.html");
+            }
+        })();
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LOA-BOSS監控</title>
     <link rel="stylesheet" href="./static/css/bossTooltip.css">
+    <link rel="stylesheet" href="./static/css/auth.css">
     <link rel="icon" type="image/png" href="./icon/favicon.ico">
     <style>
         :root {
@@ -246,12 +258,19 @@
     <script type="text/javascript" src="./static/dragonGate.js"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_v4"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc_server.js?v=20261015_v4"></script>
-
-    
+    <script type="text/javascript" src="./static/config.js?v=1"></script>
+    <script type="text/javascript" src="./static/auth.js?v=20261015_gateway"></script>
 </head>
 <body>
-    <!-- 主系統業務容器：未完成 Discord 驗證前嚴格隱藏，杜絕手機版透光或邊緣穿透 -->
-    <div id="mainAppContent" class="main-app-content" style="display: none;">
+    <!-- 主系統業務容器（已通過登入閘道驗證） -->
+    <div id="mainAppContent" class="main-app-content">
+        <!-- 右上角使用者身分元件 -->
+        <div id="discordUserStatusWidget">
+            <img id="discordUserAvatar" class="discord-avatar-img" src="" alt="avatar">
+            <span id="discordUserName" style="font-weight: 600;"></span>
+            <span style="color: #43b581; font-size: 11px;">(已驗證)</span>
+            <span id="discordLogoutBtn" class="discord-logout-link">登出</span>
+        </div>
         <div class="flex-container">
             <div id="setting_div" class="hidden">
                 <input type="number" id="bossid" placeholder="bossID">

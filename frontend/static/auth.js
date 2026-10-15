@@ -38,36 +38,6 @@
                 logoutBtn.dataset.bound = "true";
                 logoutBtn.addEventListener("click", logout);
             }
-            const btnDev = document.getElementById("btnDevMockLogin");
-            if (btnDev && !btnDev.dataset.bound) {
-                btnDev.dataset.bound = "true";
-                btnDev.addEventListener("click", () => devMockLogin());
-            }
-
-            // 本地環境下如果尚未有本地測試按鈕，自動追加
-            const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:';
-            if (isLocal && !document.getElementById("btnDevMockLogin")) {
-                const modal = document.querySelector("#discordAuthOverlay .auth-modal-card");
-                if (modal) {
-                    const devBox = document.createElement("div");
-                    devBox.id = "devMockLoginContainer";
-                    devBox.style.marginTop = "16px";
-                    devBox.style.borderTop = "1px dashed rgba(245, 158, 11, 0.4)";
-                    devBox.style.paddingTop = "14px";
-                    devBox.innerHTML = `
-                        <div style="font-size:12px; color:#f59e0b; font-weight:600; margin-bottom:8px;">💡 本地測試專用模式</div>
-                        <button id="btnDevMockLogin" type="button" style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:#202225; color:#f59e0b; border:2px solid #f59e0b; border-radius:6px; padding:12px 14px; font-size:14px; font-weight:700; cursor:pointer; transition:all 0.2s; box-shadow: 0 4px 12px rgba(245,158,11,0.2);">
-                            <span>🛠️</span> <span>本地快速測試登入 (免跳轉 Discord)</span>
-                        </button>
-                        <div style="font-size:11px; color:#8e9297; margin-top:6px;">點擊即可輸入暱稱進入系統，直接驗證在線人員清單。</div>
-                    `;
-                    modal.appendChild(devBox);
-                    const newBtnDev = document.getElementById("btnDevMockLogin");
-                    if (newBtnDev) {
-                        newBtnDev.addEventListener("click", () => devMockLogin());
-                    }
-                }
-            }
             return;
         }
 
@@ -269,14 +239,6 @@
                     使用 Discord 帳號登入
                 </button>
                 <div id="authStatusBox" class="auth-status-box"></div>
-                ${(window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.protocol === 'file:') ? `
-                <div id="devMockLoginContainer" style="margin-top: 16px; border-top: 1px dashed rgba(255,255,255,0.15); padding-top: 14px;">
-                    <button id="btnDevMockLogin" type="button" style="display:flex; align-items:center; justify-content:center; gap:8px; width:100%; background:#202225; color:#f59e0b; border:1px solid #f59e0b; border-radius:6px; padding:10px 14px; font-size:13px; font-weight:600; cursor:pointer; transition:all 0.2s;">
-                        <span>🛠️</span> <span>本地快速測試登入 (免跳轉 Discord)</span>
-                    </button>
-                    <div style="font-size:11px; color:#8e9297; margin-top:6px;">僅於本機開發環境顯示，可自訂暱稱測試在線名單。</div>
-                </div>
-                ` : ''}
             </div>
         `;
         document.body.appendChild(overlay);
@@ -295,30 +257,6 @@
         // 綁定事件
         document.getElementById("btnDiscordLogin").addEventListener("click", redirectToDiscordOAuth);
         document.getElementById("discordLogoutBtn").addEventListener("click", logout);
-
-        const btnDev = document.getElementById("btnDevMockLogin");
-        if (btnDev) {
-            btnDev.addEventListener("click", () => devMockLogin());
-        }
-    }
-
-    // 本機快速模擬身分登入 (方便測試多帳號即時連線)
-    function devMockLogin(name) {
-        const defaultNames = ["18zhao", "Purplepower 雞雞野人", "Ranger (Zsh)", "Ed", "fox", "TIM", "SLEEP"];
-        const randomDefault = defaultNames[Math.floor(Math.random() * defaultNames.length)];
-        const username = name || prompt("【本地測試模式】請輸入在線測試暱稱：", randomDefault) || randomDefault;
-        const mockUser = {
-            id: "dev_" + Math.random().toString(36).substring(2, 9),
-            username: username,
-            global_name: username,
-            nickname: username,
-            displayName: username,
-            avatar: null
-        };
-        localStorage.setItem(STORAGE_KEY_TOKEN, "dev_mock_jwt_token_" + mockUser.id);
-        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(mockUser));
-        window.currentDiscordUser = mockUser;
-        hideOverlay(mockUser);
     }
 
     // 顯示訊息於遮罩狀態框
@@ -336,10 +274,19 @@
         if (box) box.style.display = "none";
     }
 
-    // 顯示遮罩
-    // 顯示遮罩
+    function isGatewayPage() {
+        const p = window.location.pathname.toLowerCase();
+        return p.endsWith("index.html") || p.endsWith("/") || p === "" || p.endsWith("login.html");
+    }
+
+    // 顯示登入遮罩或重定向至門戶頁
     function showOverlay() {
         document.body.classList.remove("authenticated");
+        if (!isGatewayPage()) {
+            // 在主監控頁若憑證失效或未登入，直接重定向回登入門戶，絕不暴露內部代碼
+            window.location.replace("index.html");
+            return;
+        }
         const overlay = document.getElementById("discordAuthOverlay");
         if (overlay) overlay.style.display = "flex";
         const widget = document.getElementById("discordUserStatusWidget");
@@ -348,8 +295,14 @@
         if (main) main.style.display = "none";
     }
 
-    // 隱藏遮罩並顯示主畫面與右上角狀態
+    // 驗證通過：若在門戶頁則跳轉進入主系統，若在主系統則渲染畫面
     function hideOverlay(user) {
+        if (isGatewayPage()) {
+            // 登入門戶通過驗證：無感直接跳轉進入主監控頁面
+            window.location.replace("Loa_Boss_Time.html");
+            return;
+        }
+
         document.body.classList.add("authenticated");
         const overlay = document.getElementById("discordAuthOverlay");
         if (overlay) overlay.style.display = "none";
@@ -384,7 +337,7 @@
     // 跳轉至 Discord OAuth2 授權頁面
     async function redirectToDiscordOAuth() {
         if (window.location.protocol === 'file:') {
-            alert("【本地預覽模式提示】\n\nDiscord 官方 OAuth2 安全機制不支援本地檔案協定 (file://)。\n\n請直接點擊下方金黃色按鈕：\n【🛠️ 本地快速測試登入 (免跳轉 Discord)】\n即可立即進入頁面驗證在線清單！");
+            alert("Discord OAuth2 登入需要透過 HTTP/HTTPS 伺服器運行，不支援直接以 file:// 開啟。請透過伺服器 (例如 http://localhost:8090) 存取。");
             return;
         }
 
@@ -470,18 +423,6 @@
             return;
         }
 
-        // 若為本地測試 Mock 身分憑證，直接在本地放行避免被雲端 API 判定無效
-        if (token.startsWith("dev_mock_jwt_token_")) {
-            try {
-                const user = JSON.parse(localStorage.getItem(STORAGE_KEY_USER) || "null");
-                if (user) {
-                    window.currentDiscordUser = user;
-                    hideOverlay(user);
-                    return;
-                }
-            } catch {}
-        }
-
         try {
             const apiBase = getApiBaseUrl();
             const res = await fetch(`${apiBase}/api/auth/verify`, {
@@ -518,10 +459,7 @@
         localStorage.removeItem(STORAGE_KEY_TOKEN);
         localStorage.removeItem(STORAGE_KEY_USER);
         window.currentDiscordUser = null;
-        showOverlay();
-        clearAuthStatus();
-        const btn = document.getElementById("btnDiscordLogin");
-        if (btn) btn.disabled = false;
+        window.location.replace("index.html");
     }
 
     // 模組主入口初始化
@@ -550,7 +488,6 @@
     window.DiscordAuth = {
         logout,
         getApiBaseUrl,
-        devLogin: devMockLogin,
         getToken: () => localStorage.getItem(STORAGE_KEY_TOKEN),
         getUser: () => window.currentDiscordUser,
     };

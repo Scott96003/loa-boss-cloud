@@ -18,7 +18,7 @@ const MIME = {
 
 const server = http.createServer((req, res) => {
   let reqPath = decodeURIComponent(req.url.split('?')[0]);
-  if (reqPath === '/' || reqPath === '') reqPath = '/Loa_Boss_Time.html';
+  if (reqPath === '/' || reqPath === '') reqPath = '/index.html';
   
   const cleanPath = reqPath.replace(/^\/+/, '');
   const filePath = path.resolve(ROOT, cleanPath);

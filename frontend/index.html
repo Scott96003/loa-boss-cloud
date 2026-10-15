@@ -1,485 +1,68 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LOA-BOSS監控</title>
-    <link rel="stylesheet" href="./static/css/bossTooltip.css">
-    <link rel="stylesheet" href="./static/css/auth.css?v=20261015_v4">
+    <title>LOA-BOSS 監控系統 - 登入驗證</title>
     <link rel="icon" type="image/png" href="./icon/favicon.ico">
+    <link rel="stylesheet" href="./static/css/auth.css?v=20261015_v5">
     <style>
-        :root {
-            --boss顏色-25: #20eebfd4;
-            --boss顏色-50: #6e96ddd4;
-            /* 一半 */
-            --boss顏色-75: #6529b4bd;
-            /* 3/4 */
-            --boss顏色-90: #a3306ae0;
-            /* 9/10 */
-            --boss-double: #9e2b2bc7;
-            /* 雙出 */
-        }
-
         body {
-            font-size: 16px;
-            /* 設置整個頁面的字體大小 */
-            background-color: #000;
-            /* 黑色背景 */
+            margin: 0;
+            padding: 0;
+            background-color: #0f1117;
             color: #f2f2f2;
-            /* 淡灰色字體 */
-        }
-
-        input,
-        button {
-            background-color: #333;
-            /* 深色背景 */
-            color: #f2f2f2;
-            /* 淡色字體 */
-            border: 1px solid #555;
-            /* 深灰色邊框 */
-        }
-
-        input::placeholder {
-            color: #aaa;
-            /* 淺灰色的提示文字 */
-        }
-
-        .boss顏色-25 {
-            background-color: var(--boss顏色-25);
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .boss顏色-50 {
-            background-color: var(--boss顏色-50);
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .boss顏色-75 {
-            background-color: var(--boss顏色-75);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .boss顏色-90 {
-            background-color: var(--boss顏色-90);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .over-time {
-            background-color: #d9d9d9;
-            color: #000;
-            /* 黑色字體 */
-        }
-
-        .double-boss {
-            background-color: var(--boss-double);
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .message-container {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            max-height: 200px;
-            overflow-y: auto;
-            background-color: #222;
-            /* 深色背景 */
-            border-top: 1px solid #555;
-            /* 深灰色邊框 */
-            padding: 10px;
-            display: none;
-            resize: both;
-            overflow: auto;
-            z-index: 1000;
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-        }
-
-        .message-container:hover {
-            overflow: auto;
-        }
-
-        /* 針對包裹表格的 div 容器 */
-        .table-scroll-wrapper {
-            overflow-x: auto;
-            /* **關鍵！** 允許水平方向滾動 */
-
-            /* 確保這個容器本身不會超出螢幕，但允許內部內容溢出 */
-            max-width: 100%;
-            width: 100%;
-            /* 確保容器佔滿可用寬度 */
-
-            /* [選用] 為 iOS 設備提供更流暢的滾動體驗 */
-            -webkit-overflow-scrolling: touch;
-
-            /* [選用] 如果您的表格周圍有邊距，可能需要調整 */
-            margin-left: -15px;
-            /* 範例：如果父容器有 padding */
-            margin-right: -15px;
-            /* 範例：如果父容器有 padding */
-            padding-left: 15px;
-            /* 範例：為滾動區域預留空間 */
-            padding-right: 15px;
-            /* 範例：為滾動區域預留空間 */
-        }
-
-        /* 針對表格本身 */
-        #bossList {
-            /* **這是最重要的調整！** */
-            /* table-layout: auto; 是表格的預設行為，讓瀏覽器根據內容決定欄寬。 */
-            /* 但在某些佈局下可能會被覆蓋，明確設定有助於確保。 */
-            table-layout: auto;
-
-            /* **關鍵！** 讓表格的最小寬度至少與其內容所需寬度相同。 */
-            /* 這樣它就不會被壓縮，而會自然地變寬並溢出父容器。 */
-            min-width: fit-content;
-            /* 或者，如果 `min-width: fit-content;` 不起作用，您可以嘗試一個足夠大的固定寬度 */
-            /* min-width: 800px; */
-            /* 根據您的表格內容自行調整這個值，使其足夠寬 */
-
-            /* 確保表格不會被強制設定為 100% 寬度而壓縮 */
-            width: unset;
-            /* 移除任何可能強制表格為 100% 寬度的設定 */
-            /* 或者確保沒有 width: 100%; 樣式 */
-
-            margin-bottom: 320px;
-            /* 給表格底部留出空間，避免被 messageContainer 擋住 */
-        }
-
-        /* 確保 td 內容也不會被壓縮 */
-        #bossList th,
-        #bossList td {
-            white-space: nowrap;
-            /* **重要！** 防止單元格內容換行，強制其保持單行 */
-
-            /* 其他您的 td/th 樣式... */
-        }
-
-        #setting_container {
-            position: fixed;
-            top: 0px;
-            right: 0;
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-            text-align: right;
-            z-index: 1001;
-        }
-
-        #setting_container button {
-            /* 在這裡定義您想要套用於所有按鈕的新樣式 */
-            background-color: #007bff;
-            /* 範例：藍色背景 */
-            color: white;
-            /* 範例：白色文字 */
-            border: 1px solid #0056b3;
-            /* 範例：深藍色邊框 */
-            padding: 5px 5px;
-            /* 範例：內邊距 */
-            margin: 5px;
-            /* 範例：與上方的間距 */
-            cursor: pointer;
-            /* 範例：指標樣式 */
-            border-radius: 4px;
-            /* 範例：圓角 */
-            width: 100%;
-        }
-
-        /* 當螢幕寬度小於或等於 600px 時（通常作為手機的臨界點） */
-        @media (max-width: 600px) {
-
-            /* 手機專屬的樣式寫在這裡 */
-            #setting_container {
-                bottom: 0px;
-                top: unset;
-            }
-        }
-
-        .floating-message {
-            position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: #333;
-            /* 深灰色背景 */
-            color: #fff;
-            /* 白色字體 */
-            padding: 10px 20px;
-            border-radius: 5px;
-            display: none;
-            z-index: 9999;
-        }
-
-        .tooltip {
-            position: absolute;
-            background-color: #2f3051;
-            color: #fff;
-            /* 白色字體 */
-            padding: 5px;
-            border-radius: 5px;
-            z-index: 1002;
-        }
-
-        .datetime-container {
-            position: fixed;
-            top: 5%;
-            left: 20%;
-            transform: translate(-50%, -50%);
-            background-color: #222;
-            /* 深色背景 */
-            padding: 20px;
-            border: 1px solid #555;
-            /* 深灰色邊框 */
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.1);
-            /* 微光 */
-            z-index: 1000;
-            color: #f2f2f2;
-            /* 淡灰色字體 */
-        }
-
-        @keyframes blink {
-            0% {
-                background-color: rgba(255, 255, 0, 0.5);
-            }
-
-            /* 淡黃色 */
-            50% {
-                background-color: rgba(255, 255, 0, 0);
-            }
-
-            /* 完全透明 */
-            100% {
-                background-color: rgba(255, 255, 0, 0.5);
-            }
-
-            /* 淡黃色 */
-        }
-
-        .blinking {
-            animation: blink 2s infinite;
-            /* 將持續時間改為 2s */
-            color: #fff;
-            /* 白色字體 */
-        }
-
-        .draggable-header {
-            cursor: grab;
-            user-select: none;
-            /* 防止拖曳時文字被選取 */
-        }
-
-        .draggable-header.dragging {
-            opacity: 0.5;
-            border: 1px dashed #007bff;
-        }
-
-        .draggable-header.drag-over {
-            /* 拖曳經過時，顯示一個邊框來指示放置位置 */
-            border-left: 2px solid #007bff;
-        }
-
-        #dragonGateStatusDisplay {
-            white-space: pre-wrap;
-            /* 確保換行符 (\n) 能被正確顯示 */
-            font-size: 14px;
-        }
-
-        .flex-container {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            min-height: 100vh;
             display: flex;
-            /* 啟用 Flexbox 佈局 */
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .gateway-wrapper {
             width: 100%;
-            /* 設置總寬度 */
-            padding: 10px;
-        }
-
-        .flex-container button {
-            padding: 2px;
-            margin: 2px;
-        }
-
-        #filterButtons button {
-            font-size: 18px;
-            margin: 3px;
-        }
-
-        .box {
-            flex: 1;
-            /* 關鍵：讓三個子元素平均佔據可用空間 */
-            /* flex: 1; 相當於 flex-grow: 1; flex-shrink: 1; flex-basis: 0; */
-
+            max-width: 440px;
             padding: 20px;
-            margin: 5px;
-            text-align: center;
-        }
-
-        .hidden {
-            /* 關鍵：將元素完全從頁面佈局中移除 */
-            display: none !important;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
     </style>
     <script type="text/javascript" src="./static/config.js"></script>
-    <script type="text/javascript" src="./static/auth.js?v=20261015_v4"></script>
-    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_v4"></script>
-    <script type="text/javascript" src="./static/init.js?v=20261015_killlog"></script>
-    <script type="text/javascript" src="./static/save.js?v=1"></script>
-    <script type="text/javascript" src="./static/db.js"></script>
-    <script type="text/javascript" src="./static/tablefunc.js"></script>
-    <script type="text/javascript" src="./static/bossList.js"></script>
-    <script type="text/javascript" src="./static/bossTooltip.js"></script>
-    <script type="text/javascript" src="./static/dashboard.js?v=1"></script>
-    <script type="text/javascript" src="./static/messageListen.js"></script>
-    <script type="text/javascript" src="./static/sendMessageToDiscord.js"></script>
-    <script type="text/javascript" src="./static/onLoading.js?v=1"></script>
-    <script type="text/javascript" src="./static/dragonGate.js"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_v4"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc_client.js?v=20261015_v4"></script>
-
-
+    <script type="text/javascript" src="./static/auth.js?v=20261015_v5"></script>
 </head>
 
 <body>
-            <!-- Discord 身分驗證遮罩 -->
-    <div id="discordAuthOverlay">
-        <div class="auth-modal-card">
-            <div class="auth-modal-icon">
-                <svg width="34" height="26" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M60.1 4.9C55.4 2.7 50.4 1.1 45.1 0.2C45 0.2 44.9 0.3 44.8 0.4C44.1 1.6 43.4 3.1 42.9 4.3C37.2 3.4 31.6 3.4 26 4.3C25.5 3.1 24.8 1.6 24.1 0.4C24 0.3 23.9 0.2 23.8 0.2C18.5 1.1 13.5 2.7 8.8 4.9C8.7 4.9 8.6 5 8.6 5.1C-0.8 19.1 -1.7 32.7 1 46.1C1 46.2 1.1 46.3 1.2 46.4C7.4 51 13.4 53.7 19.3 55.5C19.5 55.6 19.6 55.5 19.7 55.4C21.1 53.5 22.3 51.5 23.4 49.3C23.5 49.1 23.4 48.9 23.2 48.8C21.2 48.1 19.3 47.1 17.5 46C17.3 45.9 17.3 45.6 17.5 45.5C17.9 45.2 18.2 44.9 18.6 44.6C18.7 44.5 18.9 44.5 19 44.5C31.5 50.2 45.1 50.2 57.4 44.5C57.5 44.5 57.7 44.5 57.8 44.6C58.2 44.9 58.5 45.2 58.9 45.5C59.1 45.6 59.1 45.9 58.9 46C57.1 47.1 55.2 48.1 53.2 48.8C53 48.9 52.9 49.1 53 49.3C54.1 51.5 55.3 53.5 56.7 55.4C56.8 55.5 56.9 55.6 57.1 55.5C63 53.7 69 51 75.2 46.4C75.3 46.3 75.4 46.2 75.4 46.1C78.4 31.6 74.4 18.1 60.3 5.1C60.3 5 60.2 4.9 60.1 4.9ZM24.5 37.8C20.9 37.8 17.9 34.5 17.9 30.4C17.9 26.3 20.8 23 24.5 23C28.2 23 31.2 26.3 31.1 30.4C31.1 34.5 28.2 37.8 24.5 37.8ZM46.9 37.8C43.3 37.8 40.3 34.5 40.3 30.4C40.3 26.3 43.2 23 46.9 23C50.6 23 53.6 26.3 53.5 30.4C53.5 34.5 50.6 37.8 46.9 37.8Z" fill="white"/>
-                </svg>
-            </div>
-            <div class="auth-modal-title">LOA-BOSS 監控系統</div>
-            <div class="auth-modal-desc">
-                本系統需要 Discord 登入授權。<br>
-                您的 Discord 帳號必須擁有檢視指定頻道的權限方可進入使用。
-            </div>
-            <div class="auth-channel-badge">
-                # 頻道權限驗證已啟用
-            </div>
-
-            <!-- 正式 Discord 登入大按鈕 -->
-            <button id="btnDiscordLogin" class="btn-discord-login">
-                <svg width="20" height="16" viewBox="0 0 71 55" fill="none">
-                    <path d="M60.1 4.9C55.4 2.7 50.4 1.1 45.1 0.2C45 0.2 44.9 0.3 44.8 0.4C44.1 1.6 43.4 3.1 42.9 4.3C37.2 3.4 31.6 3.4 26 4.3C25.5 3.1 24.8 1.6 24.1 0.4C24 0.3 23.9 0.2 23.8 0.2C18.5 1.1 13.5 2.7 8.8 4.9C8.7 4.9 8.6 5 8.6 5.1C-0.8 19.1 -1.7 32.7 1 46.1C1 46.2 1.1 46.3 1.2 46.4C7.4 51 13.4 53.7 19.3 55.5C19.5 55.6 19.6 55.5 19.7 55.4C21.1 53.5 22.3 51.5 23.4 49.3C23.5 49.1 23.4 48.9 23.2 48.8C21.2 48.1 19.3 47.1 17.5 46C17.3 45.9 17.3 45.6 17.5 45.5C17.9 45.2 18.2 44.9 18.6 44.6C18.7 44.5 18.9 44.5 19 44.5C31.5 50.2 45.1 50.2 57.4 44.5C57.5 44.5 57.7 44.5 57.8 44.6C58.2 44.9 58.5 45.2 58.9 45.5C59.1 45.6 59.1 45.9 58.9 46C57.1 47.1 55.2 48.1 53.2 48.8C53 48.9 52.9 49.1 53 49.3C54.1 51.5 55.3 53.5 56.7 55.4C56.8 55.5 56.9 55.6 57.1 55.5C63 53.7 69 51 75.2 46.4C75.3 46.3 75.4 46.2 75.4 46.1C78.4 31.6 74.4 18.1 60.3 5.1C60.3 5 60.2 4.9 60.1 4.9ZM24.5 37.8C20.9 37.8 17.9 34.5 17.9 30.4C17.9 26.3 20.8 23 24.5 23C28.2 23 31.2 26.3 31.1 30.4C31.1 34.5 28.2 37.8 24.5 37.8ZM46.9 37.8C43.3 37.8 40.3 34.5 40.3 30.4C40.3 26.3 43.2 23 46.9 23C50.6 23 53.6 26.3 53.5 30.4C53.5 34.5 50.6 37.8 46.9 37.8Z" fill="white"/>
-                </svg>
-                <span>使用 Discord 帳號登入</span>
-            </button>
-            <div id="authStatusBox" class="auth-status-box"></div>
-        </div>
-    </div>
-
-    <!-- 主系統業務容器：未完成 Discord 驗證前嚴格隱藏，杜絕手機版透光或邊緣穿透 -->
-    <div id="mainAppContent" class="main-app-content" style="display: none;">
-        <!-- 右上角使用者身分元件 -->
-        <div id="discordUserStatusWidget">
-            <img id="discordUserAvatar" class="discord-avatar-img" src="" alt="avatar">
-            <span id="discordUserName" style="font-weight: 600;"></span>
-            <span style="color: #43b581; font-size: 11px;">(已驗證)</span>
-            <span id="discordLogoutBtn" class="discord-logout-link">登出</span>
-        </div>
-
-        <div class="flex-container">
-            <div id="setting_div" class="hidden">
-                <input type="number" id="bossid" placeholder="bossID">
-                <input type="text" id="bossName" placeholder="頭目名稱">
-                <input type="number" id="respawnTime" placeholder="重生時間(小時)">
-                <br>
-                <button id="btn_addToBossList">新增</button>
-                <button id="btn_resetData">重置預設</button>
-                <button id="btn_saveToDB">儲存資料</button>
-                <br>
-                <button id="btn_refresh">重整</button>
-                <button id="btn_refreshDeathTime">重新獲取死亡時間</button>
-                <button id="btn_reboot">維修重置時間</button>
-                <div>
-                    <span style="color: var(--boss顏色-25)">重生已過1/4 </span>
-                    <span style="color: var(--boss顏色-50)">重生已過1/2 </span>
-                    <span style="color: var(--boss顏色-75)"> 重生已過3/4 </span>
-                    <span style="color: var(--boss顏色-90)"> 重生已過9/10 </span>
+    <div class="gateway-wrapper">
+        <!-- 登入門戶卡片：完全不加載任何業務代碼與數據，安全無洩漏 -->
+        <div id="discordAuthOverlay">
+            <div class="auth-modal-card">
+                <div class="auth-modal-icon">
+                    <svg width="34" height="26" viewBox="0 0 71 55" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M60.1 4.9C55.4 2.7 50.4 1.1 45.1 0.2C45 0.2 44.9 0.3 44.8 0.4C44.1 1.6 43.4 3.1 42.9 4.3C37.2 3.4 31.6 3.4 26 4.3C25.5 3.1 24.8 1.6 24.1 0.4C24 0.3 23.9 0.2 23.8 0.2C18.5 1.1 13.5 2.7 8.8 4.9C8.7 4.9 8.6 5 8.6 5.1C-0.8 19.1 -1.7 32.7 1 46.1C1 46.2 1.1 46.3 1.2 46.4C7.4 51 13.4 53.7 19.3 55.5C19.5 55.6 19.6 55.5 19.7 55.4C21.1 53.5 22.3 51.5 23.4 49.3C23.5 49.1 23.4 48.9 23.2 48.8C21.2 48.1 19.3 47.1 17.5 46C17.3 45.9 17.3 45.6 17.5 45.5C17.9 45.2 18.2 44.9 18.6 44.6C18.7 44.5 18.9 44.5 19 44.5C31.5 50.2 45.1 50.2 57.4 44.5C57.5 44.5 57.7 44.5 57.8 44.6C58.2 44.9 58.5 45.2 58.9 45.5C59.1 45.6 59.1 45.9 58.9 46C57.1 47.1 55.2 48.1 53.2 48.8C53 48.9 52.9 49.1 53 49.3C54.1 51.5 55.3 53.5 56.7 55.4C56.8 55.5 56.9 55.6 57.1 55.5C63 53.7 69 51 75.2 46.4C75.3 46.3 75.4 46.2 75.4 46.1C78.4 31.6 74.4 18.1 60.3 5.1C60.3 5 60.2 4.9 60.1 4.9ZM24.5 37.8C20.9 37.8 17.9 34.5 17.9 30.4C17.9 26.3 20.8 23 24.5 23C28.2 23 31.2 26.3 31.1 30.4C31.1 34.5 28.2 37.8 24.5 37.8ZM46.9 37.8C43.3 37.8 40.3 34.5 40.3 30.4C40.3 26.3 43.2 23 46.9 23C50.6 23 53.6 26.3 53.5 30.4C53.5 34.5 50.6 37.8 46.9 37.8Z" fill="white"/>
+                    </svg>
                 </div>
-            </div>
+                <div class="auth-modal-title">LOA-BOSS 監控系統</div>
+                <div class="auth-modal-desc">
+                    本系統需要 Discord 登入授權。<br>
+                    您的 Discord 帳號必須擁有檢視指定頻道的權限方可進入使用。
+                </div>
+                <div class="auth-channel-badge">
+                    # 頻道權限驗證已啟用
+                </div>
 
-            <div id="dragonGateStatusContainer"
-                style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
-                <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
-                <div id="dragonGateStatusDisplay"></div>
+                <!-- 正式 Discord 登入按鈕 -->
+                <button id="btnDiscordLogin" class="btn-discord-login">
+                    <svg width="20" height="16" viewBox="0 0 71 55" fill="none">
+                        <path d="M60.1 4.9C55.4 2.7 50.4 1.1 45.1 0.2C45 0.2 44.9 0.3 44.8 0.4C44.1 1.6 43.4 3.1 42.9 4.3C37.2 3.4 31.6 3.4 26 4.3C25.5 3.1 24.8 1.6 24.1 0.4C24 0.3 23.9 0.2 23.8 0.2C18.5 1.1 13.5 2.7 8.8 4.9C8.7 4.9 8.6 5 8.6 5.1C-0.8 19.1 -1.7 32.7 1 46.1C1 46.2 1.1 46.3 1.2 46.4C7.4 51 13.4 53.7 19.3 55.5C19.5 55.6 19.6 55.5 19.7 55.4C21.1 53.5 22.3 51.5 23.4 49.3C23.5 49.1 23.4 48.9 23.2 48.8C21.2 48.1 19.3 47.1 17.5 46C17.3 45.9 17.3 45.6 17.5 45.5C17.9 45.2 18.2 44.9 18.6 44.6C18.7 44.5 18.9 44.5 19 44.5C31.5 50.2 45.1 50.2 57.4 44.5C57.5 44.5 57.7 44.5 57.8 44.6C58.2 44.9 58.5 45.2 58.9 45.5C59.1 45.6 59.1 45.9 58.9 46C57.1 47.1 55.2 48.1 53.2 48.8C53 48.9 52.9 49.1 53 49.3C54.1 51.5 55.3 53.5 56.7 55.4C56.8 55.5 56.9 55.6 57.1 55.5C63 53.7 69 51 75.2 46.4C75.3 46.3 75.4 46.2 75.4 46.1C78.4 31.6 74.4 18.1 60.3 5.1C60.3 5 60.2 4.9 60.1 4.9ZM24.5 37.8C20.9 37.8 17.9 34.5 17.9 30.4C17.9 26.3 20.8 23 24.5 23C28.2 23 31.2 26.3 31.1 30.4C31.1 34.5 28.2 37.8 24.5 37.8ZM46.9 37.8C43.3 37.8 40.3 34.5 40.3 30.4C40.3 26.3 43.2 23 46.9 23C50.6 23 53.6 26.3 53.5 30.4C53.5 34.5 50.6 37.8 46.9 37.8Z" fill="white"/>
+                    </svg>
+                    <span>使用 Discord 帳號登入</span>
+                </button>
+                <div id="authStatusBox" class="auth-status-box"></div>
             </div>
-            <div id="webrtc_div" style="display: none;">
-            </div>
-        </div>
-        <div id="reboot_message"></div>
-        <div id="filterButtons">
-            <button data-boss-name="">顯示全部</button>
-            <button data-boss-name="1,2,91202,91605,91516">三大龍</button>
-            <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962">魂塔長老</button>
-            <button data-boss-name="81082,45685,45674,45625,45753">陣營Boss</button>
-            <button data-boss-name="45513,45547,45606,45650,45652,45653,45654,45618,45672,45673,46220,46271">傲慢之塔</button>
-
-            <button data-boss-name="45614,45601,45617,,45600,99513,45545,45488,45678,45680">野外重要Boss</button>
-            <button
-                data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962,81082,45685,45674,45625,45753,45672,45673,45618,45653,45614,45801,46142,46141,99085,99086,99065,45863,45649">重點必須拿下</button>
-            <button id="trackBossNamesBtn">追蹤清單</button>
-        </div>
-        <div class="table-scroll-wrapper">
-            <table id="bossList">
-                <tbody>
-                </tbody>
-            </table>
-        </div>
-        <div class="message-container" id="messageContainer" style="display:block;"></div>
-        <div id="setting_container">
-            <button id="toggleMessageContainer" style="width: 80px;">顯示訊息</button><br>
-            <button id="toggleSettingContainer" style="width: 80px;">設定</button><br>
-            <div>
-                <span>音量:</span><span id="percentageDisplay">50%</span><br>
-                <input type="range" id="percentageSlider" min="0" max="100" step="1" value="50" style="width: 80px;">
-            </div>
-            <span id="versionSpan">ver251027</span>
-        </div>
-
-        <div class="floating-message" id="floatingMessage">
-            This is a floating message!
-        </div>
-
-        <div id="datetimePicker" class="datetime-container" style="display: none;">
-            <label for="datetime">填入維修日期和時間:</label><br>
-            <input type="datetime-local" id="datetime" name="datetime"><br><br>
-            <button id="confirmBtn">確認</button>
-            <button id="cancelBtn">取消</button>
-        </div>
-        <div id="datetimePickerForDeathTime" class="datetime-container" style="display: none;">
-            <label for="datetime">填入想要獲取時間點之後的死亡時間:</label><br>
-            <input type="datetime-local" id="datetimeForDeathTime" name="datetime"><br><br>
-            <button id="confirmBtnForDeathTime">確認</button>
-            <button id="cancelBtnForDeathTime">取消</button>
-        </div>
-        <div id="tts-overlay" style="
-            display: none; 
-            position: fixed; 
-            top: 0; left: 0; 
-            width: 100%; height: 100%; 
-            background: rgba(0, 0, 0, 0.9); 
-            color: white; 
-            z-index: 9999; 
-            text-align: center; 
-            padding-top: 20vh;
-        ">
-            <h2>偵測到行動裝置，請點擊啟動語音</h2>
-            <p>行動裝置需先點擊才能啟用自動語音播報。</p>
-            <button id="tts-unlock-button" style="
-                padding: 15px 30px; 
-                font-size: 1.2em; 
-                cursor: pointer; 
-                background-color: #4CAF50; 
-                color: white; 
-                border: none; 
-                border-radius: 5px;
-            ">
-                啟動播報
-            </button>
         </div>
     </div>
 </body>

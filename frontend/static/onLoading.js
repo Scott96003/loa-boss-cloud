@@ -119,9 +119,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     var btn_addToBossList = document.getElementById("btn_addToBossList");
     var btn_refresh = document.getElementById("btn_refresh");
-    var btn_reboot = document.getElementById("btn_reboot");
     var btn_resetData = document.getElementById("btn_resetData");
-    var btn_refreshDeathTime = document.getElementById("btn_refreshDeathTime");
 
 
     btn_addToBossList.addEventListener("click", function () {
@@ -134,20 +132,6 @@ document.addEventListener("DOMContentLoaded", function () {
     btn_resetData.addEventListener("click", function () {
         resetData(this);
     });
-
-    btn_reboot.addEventListener("click", function () {
-        createDateTimePicker(this);
-    });
-
-    btn_refreshDeathTime.addEventListener("click", function () {
-        createDateTimePickerForDeathTime(this);
-    });
-
-    document.getElementById('confirmBtn').addEventListener('click', confirmDateTime);
-    document.getElementById('cancelBtn').addEventListener('click', cancelDateTime);
-
-    document.getElementById('confirmBtnForDeathTime').addEventListener('click', confirmDateTimeForDeathTime);
-    document.getElementById('cancelBtnForDeathTime').addEventListener('click', cancelDateTimeForDeathTime);
 
     document.getElementById('btn_saveToDB').addEventListener('click', actualSaveLogic);
 

@@ -175,18 +175,6 @@
           border-radius: 5px;
           z-index: 1002;
         }
-        .datetime-container {
-          position: fixed;
-          top: 5%;
-          left: 20%;
-          transform: translate(-50%, -50%);
-          background-color: #222; /* 深色背景 */
-          padding: 20px;
-          border: 1px solid #555; /* 深灰色邊框 */
-          box-shadow: 0 0 10px rgba(255,255,255,0.1); /* 微光 */
-          z-index: 1000;
-          color: #f2f2f2; /* 淡灰色字體 */
-        }
         @keyframes blink {
             0% { background-color: rgba(255, 255, 0, 0.5); } /* 淡黃色 */
             50% { background-color: rgba(255, 255, 0, 0); } /* 完全透明 */
@@ -281,8 +269,6 @@
                 <button id="btn_saveToDB">儲存資料</button>
                 <br>
                 <button id="btn_refresh">重整</button>
-                <button id="btn_refreshDeathTime">重新獲取死亡時間</button>
-                <button id="btn_reboot">維修重置時間</button>            
                 <div>            
                     <span style="color: var(--boss顏色-25)">重生已過1/4  </span>
                     <span style="color: var(--boss顏色-50)">重生已過1/2  </span>
@@ -331,18 +317,6 @@
           This is a floating message!
         </div>
 
-        <div id="datetimePicker" class="datetime-container" style="display: none;">
-          <label for="datetime">填入維修日期和時間:</label><br>
-          <input type="datetime-local" id="datetime" name="datetime"><br><br>
-          <button id="confirmBtn">確認</button>
-          <button id="cancelBtn">取消</button>
-        </div>
-        <div id="datetimePickerForDeathTime" class="datetime-container" style="display: none;">
-          <label for="datetime">填入想要獲取時間點之後的死亡時間:</label><br>
-          <input type="datetime-local" id="datetimeForDeathTime" name="datetime"><br><br>
-          <button id="confirmBtnForDeathTime">確認</button>
-          <button id="cancelBtnForDeathTime">取消</button>
-        </div>
         <div id="tts-overlay" style="
             display: none; 
             position: fixed; 

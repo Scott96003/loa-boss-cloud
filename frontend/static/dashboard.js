@@ -198,18 +198,21 @@ function addBossTR(data) {
 
     // 應用特殊格式/事件
     if (config.format === 'tooltip' && config.key === 'death') {
-      if (isMobileDevice()) {
-        cell.addEventListener("click", function (event) {
-          showFullScreenView(event, data);
-        })
-      } else {
-        cell.addEventListener("mouseover", function (event) {
-          showTooltip(event, data);
-        });
-        cell.addEventListener("mouseout", function () {
+      // 手機／觸控裝置：點擊開啟底部抽屜；桌機：滑鼠移入顯示 tooltip
+      cell.addEventListener("click", function (event) {
+        if (useDeathHistorySheet()) {
           hideTooltip();
-        });
-      }
+          showFullScreenView(event, data);
+        }
+      });
+      cell.addEventListener("mouseover", function (event) {
+        if (!useDeathHistorySheet()) {
+          showTooltip(event, data);
+        }
+      });
+      cell.addEventListener("mouseout", function () {
+        hideTooltip();
+      });
     }
 
     // 設置刪除按鈕事件

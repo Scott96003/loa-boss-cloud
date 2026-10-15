@@ -1,62 +1,219 @@
-/* 全螢幕 Modal 容器樣式 */
-.full-screen-modal {
-    position: fixed; /* 固定在視窗上 */
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: #333; /* 深色背景，讓內容更突出，您可以自行調整 */
-    z-index: 1000; /* 確保它位於所有其他元素之上 */
-    display: flex; /* 使用 Flexbox 佈局 */
-    flex-direction: column; /* 垂直排列 Header 和 Content */
-    overflow: hidden; /* 避免整個 Modal 出現雙層滾動條 */
+/* =========================================================
+   手機版死亡歷史紀錄：底部抽屜（Bottom Sheet）
+   配色沿用 main.css 的 Discord 風格變數，並附上預設值以防頁面未載入 main.css
+   ========================================================= */
+
+.dh-root {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
 }
 
-/* Modal 標頭樣式 */
-.modal-header {
+.dh-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    opacity: 0;
+    transition: opacity 0.22s ease;
+}
+
+.dh-sheet {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-width: 640px;
+    height: 72vh;
+    height: 72dvh;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface, #18191c);
+    color: var(--text, #f2f3f5);
+    font-family: var(--font, -apple-system, BlinkMacSystemFont, "Noto Sans TC", sans-serif);
+    border: 1px solid var(--border-strong, #3a3d44);
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.45);
+    transform: translateY(100%);
+    transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.dh-open .dh-backdrop { opacity: 1; }
+.dh-open .dh-sheet { transform: translateY(0); }
+.dh-sheet.dh-dragging { transition: none; }
+
+/* ---------- 標頭（可拖曳區） ---------- */
+.dh-grab {
+    flex-shrink: 0;
+    touch-action: none;
+    border-bottom: 1px solid var(--border, #2f3136);
+}
+
+.dh-handle {
+    width: 40px;
+    height: 4px;
+    margin: 8px auto 4px;
+    border-radius: 2px;
+    background: var(--border-strong, #3a3d44);
+}
+
+.dh-header {
     display: flex;
     align-items: center;
-    padding: 10px;
-    background-color: #444; /* 標頭背景色 */
-    color: white; /* 文字顏色 */
-    height: 50px; /* 固定標頭高度 */
-    flex-shrink: 0; /* 標頭不縮小 */
-    border-bottom: 1px solid #555;
+    gap: 12px;
+    padding: 4px 12px 12px 16px;
 }
 
-/* 返回按鈕樣式 */
-.modal-back-button {
-    background: none;
-    border: none;
-    color: white;
-    font-size: 18px;
-    padding: 5px 10px;
-    cursor: pointer;
-    margin-right: 15px; /* 與標題或其他內容保持距離 */
+.dh-heading {
+    flex: 1;
+    min-width: 0;
 }
 
-/* 標題樣式 */
-.modal-title {
+.dh-title {
+    font-size: 17px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dh-sub {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--text-faint, #8e9297);
+}
+
+.dh-close {
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    padding: 0;
     font-size: 16px;
-    font-weight: bold;
+    line-height: 1;
+    color: var(--text-muted, #b9bbbe);
+    background: var(--surface-2, #202225);
+    border: 1px solid var(--border, #2f3136);
+    border-radius: 50%;
+    cursor: pointer;
 }
 
-/* Modal 內容區域樣式 */
-.modal-content {
-    flex-grow: 1; /* 佔用剩餘所有空間 */
-    overflow-y: auto; /* 內容過長時允許垂直滾動 */
-    padding: 10px;
-    color: white; /* 內容文字顏色 */
+/* ---------- 內容 ---------- */
+.dh-body {
+    flex: 1;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding: 0 0 calc(16px + env(safe-area-inset-bottom));
 }
 
-/* 內容區表格樣式 (可選，讓表格在手機上更好看) */
-.modal-content table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-top: 10px;
+.dh-day-title {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-muted, #b9bbbe);
+    background: var(--surface-2, #202225);
+    border-bottom: 1px solid var(--border, #2f3136);
 }
 
-.modal-content td {
-    padding: 5px;
-    border: 1px solid #555;
+.dh-seg {
+    display: flex;
+    gap: 12px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border, #2f3136);
+}
+
+.dh-seg-time {
+    flex-shrink: 0;
+    width: 44px;
+    padding-top: 1px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-faint, #8e9297);
+}
+
+.dh-seg-list {
+    flex: 1;
+    min-width: 0;
+}
+
+.dh-seg-empty {
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+.dh-none {
+    font-size: 12px;
+    color: var(--text-faint, #8e9297);
+    opacity: 0.6;
+}
+
+.dh-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    padding: 2px 0;
+    font-size: 14px;
+}
+
+.dh-time {
+    font-variant-numeric: tabular-nums;
+    color: var(--text, #f2f3f5);
+}
+
+.dh-date {
+    margin-right: 4px;
+    font-size: 12px;
+    color: var(--text-faint, #8e9297);
+}
+
+.dh-emblem {
+    color: var(--text-muted, #b9bbbe);
+}
+
+.dh-boss {
+    font-size: 12px;
+    color: var(--accent, #a980ff);
+}
+
+.dh-active .dh-time,
+.dh-active .dh-emblem {
+    color: var(--danger, #ed4245);
+    font-weight: 600;
+}
+
+.dh-badge {
+    padding: 0 6px;
+    font-size: 11px;
+    line-height: 18px;
+    color: #fff;
+    background: var(--danger, #ed4245);
+    border-radius: 9px;
+}
+
+.dh-reboot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0;
+    font-size: 12px;
+    color: #f0b232;
+}
+
+.dh-reboot::after {
+    content: "";
+    flex: 1;
+    border-top: 1px dashed rgba(240, 178, 50, 0.5);
+}
+
+.dh-empty {
+    padding: 48px 16px;
+    text-align: center;
+    color: var(--text-faint, #8e9297);
 }

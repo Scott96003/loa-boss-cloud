@@ -179,6 +179,46 @@ function syncBossLatestDeathAndEmblem(bossData) {
 
 
 /**
+ * 取得下一個整點 (+5 秒) 的時間戳記；台灣時區為 UTC+8，整點邊界與 UTC 相同
+ */
+function getNextHourBoundary(nowMs = Date.now()) {
+  const HOUR_MS = 60 * 60 * 1000;
+  return Math.floor(nowMs / HOUR_MS) * HOUR_MS + HOUR_MS + 5 * 1000;
+}
+
+/**
+ * 將毫秒時間差格式化為「X 天 HH:MM」(與前端 formatTimeDifference 相同)
+ */
+function formatTimeDifference(timeDiff) {
+  const days = Math.floor(timeDiff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((timeDiff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((timeDiff % (1000 * 60 * 60)) / (1000 * 60));
+  return (days > 0 ? `${days} 天 ` : '') +
+    `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+/**
+ * 產生 Discord 表格的單列資料 (含最新死亡時間與已死亡時間差)
+ */
+function buildDiscordTableRow(item, now, spawnTime, rebootTime) {
+  const latest = getLatestDeathRecord(item);
+  const currentDate = parseTaiwanDate(item.death);
+  const latestDeath = latest && (!currentDate || parseTaiwanDate(latest.death) > currentDate)
+    ? latest.death
+    : item.death;
+  const sinceDate = parseTaiwanDate(latestDeath) || parseTaiwanDate(rebootTime);
+  const elapsed = sinceDate ? Math.max(0, now.getTime() - sinceDate.getTime()) : 0;
+  return {
+    count: item.respawnCount !== undefined ? item.respawnCount : 0,
+    name: item.bossName,
+    spawnTime,
+    guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
+    death: latestDeath,
+    已死亡: formatTimeDifference(elapsed)
+  };
+}
+
+/**
  * 計算字串顯示寬度 (全形=2, 半形=1)
  */
 function getDisplayWidth(str) {
@@ -378,7 +418,7 @@ export class BossRoom {
       console.error("[ALARM] 執行輪迴排程檢查失敗:", err);
     } finally {
       try {
-        await this.storage.setAlarm(Date.now() + 30 * 1000);
+        await this.storage.setAlarm(getNextHourBoundary());
       } catch (e) {
         console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
       }
@@ -691,12 +731,6 @@ export class BossRoom {
       }, { headers: corsHeaders });
     }
 
-    // API: 定時觸發輪迴檢查 (供 Cron 或內部呼叫)
-    if (url.pathname === "/api/scheduled-check" && request.method === "POST") {
-      const result = await this.checkAndTriggerRespawnCycle();
-      return Response.json({ success: true, ...result }, { headers: corsHeaders });
-    }
-
     // API: 外部發送 Boss 死亡通知 (供外部 Bot / 爬蟲直接 POST 觸發)
     if (url.pathname === "/api/boss-death" && request.method === "POST") {
       try {
@@ -1006,7 +1040,9 @@ export class BossRoom {
           data.bossListData.forEach(b => syncBossLatestDeathAndEmblem(b));
         }
         this.mainData.bossListData = data.bossListData;
-        this.mainData.config = data.config;
+        // 保留伺服器自行維護的 lastRefreshBossTime，避免前端舊值造成輪迴通知漏發或重複發送
+        const serverLastRefresh = this.mainData.config ? this.mainData.config.lastRefreshBossTime : undefined;
+        this.mainData.config = { ...data.config, lastRefreshBossTime: serverLastRefresh };
         this.mainData.gateOpenTime = data.gateOpenTime;
         this.mainData.gateCloseTime = data.gateCloseTime;
         this.mainData.last_updated = new Date().toISOString();
@@ -1145,28 +1181,9 @@ export class BossRoom {
         }
       });
 
-      const elderData = sortedElders.map(item => {
-        let latestDeath = item.death;
-        if (Array.isArray(item.deathList) && item.deathList.length > 0) {
-          let latestDate = parseTaiwanDate(item.death);
-          for (const dl of item.deathList) {
-            if (dl && dl.death) {
-              const d = parseTaiwanDate(dl.death);
-              if (d && (!latestDate || d.getTime() > latestDate.getTime())) {
-                latestDate = d;
-                latestDeath = dl.death;
-              }
-            }
-          }
-        }
-        return {
-          count: item.respawnCount !== undefined ? item.respawnCount : 0,
-          name: item.bossName,
-          spawnTime: item.重生間隔 || getSpawnRange(now, 7),
-          guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
-          death: latestDeath
-        };
-      });
+      const elderData = sortedElders.map(item =>
+        buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, 7), rebootTime)
+      );
 
       // 3. 格式化等寬表格與活動統計字串
       const tableMsg = formatTableForDiscord(elderData, true);
@@ -1326,7 +1343,7 @@ export class BossRoom {
     // 1. 找出所有監控 Boss 的重生結束小時 (去重並排序)
     const allTargetHours = [...new Set(
       this.mainData.bossListData
-        .filter(item => ALL_DC_CHECK_BOSS_IDS.includes(Number(item.id) % 100000))
+        .filter(item => ALL_DC_CHECK_BOSS_IDS.includes(Number(item.id)))
         .map(item => {
           const range = item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1);
           return parseInt(range.split('~')[1], 10);
@@ -1353,7 +1370,8 @@ export class BossRoom {
     }
 
     // 3. 判斷輪迴小時是否發生切換
-    if (newRange !== lastRefresh) {
+    // 舊資料可能由前端 localStorage 寫入字串，統一轉成數字比較
+    if (newRange !== Number(lastRefresh)) {
       console.log(`[RESPAWN_CYCLE] 觸發重生輪迴時間切換: ${lastRefresh} -> ${newRange} (台灣時間 ${twHours}:${twMinutes})`);
 
       if (!this.mainData.config) this.mainData.config = {};
@@ -1368,10 +1386,9 @@ export class BossRoom {
         refreshBossComputedFields(b, rebootTime, now);
       });
 
-      // 4. 定義推播分類映射 (優先採用環境變數，若未設定則支援前端配置的長老 Webhook)
-      const defaultElderUrl = "https://discord.com/api/webhooks/1508790867232817153/mImf5VH_bxNnYsSGjM7iX_s_aUoiGgbAc_yQ5p1UdJturAgiXhBxVw5MUHnEb09dNe7S";
+      // 4. 定義推播分類映射 (Webhook URL 一律由 wrangler secret 提供)
       const bossReportMap = [
-        { name: "長老", checkList: ELDER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_ELDER || defaultElderUrl },
+        { name: "長老", checkList: ELDER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_ELDER },
         { name: "奧塔", checkList: TOWER_ALL_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER },
         { name: "陣營", checkList: CAMP_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_CAMP },
         { name: "野外", checkList: WILD_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_WILD },
@@ -1381,9 +1398,12 @@ export class BossRoom {
       const titleMsg = "*** 重生輪迴時間刷新 ***\n";
 
       for (const { name, checkList, webhookUrl } of bossReportMap) {
-        if (!webhookUrl) continue;
+        if (!webhookUrl) {
+          console.warn(`⚠️ [WEBHOOK] 未設定「${name}」分類的 Webhook secret，略過輪迴刷新推播。`);
+          continue;
+        }
 
-        let bosses = this.mainData.bossListData.filter(item => checkList.includes(Number(item.id) % 100000));
+        let bosses = this.mainData.bossListData.filter(item => checkList.includes(Number(item.id)));
         if (bosses.length === 0) continue;
 
         bosses.sort((a, b) => {
@@ -1421,31 +1441,13 @@ export class BossRoom {
    */
   async sendRespawnCycleWebhook(webhookUrl, titleMsg, checkList, now = new Date(), categoryName = "") {
     try {
+      const rebootTime = this.mainData.config ? this.mainData.config.rebootTime : null;
       const bosses = (this.mainData.bossListData || [])
-        .filter(item => checkList.includes(Number(item.id) % 100000));
+        .filter(item => checkList.includes(Number(item.id)));
 
-      const tableData = bosses.map(item => {
-        let latestDeath = item.death;
-        if (Array.isArray(item.deathList) && item.deathList.length > 0) {
-          let latestDate = parseTaiwanDate(item.death);
-          for (const dl of item.deathList) {
-            if (dl && dl.death) {
-              const d = parseTaiwanDate(dl.death);
-              if (d && (!latestDate || d.getTime() > latestDate.getTime())) {
-                latestDate = d;
-                latestDeath = dl.death;
-              }
-            }
-          }
-        }
-        return {
-          count: item.respawnCount !== undefined ? item.respawnCount : 0,
-          name: item.bossName,
-          spawnTime: item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1),
-          guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
-          death: latestDeath
-        };
-      });
+      const tableData = bosses.map(item =>
+        buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1), rebootTime)
+      );
 
       const tableMsg = formatTableForDiscord(tableData, true);
       const activeMsg = `\n> 活動出現次數: ${calculateActiveStats(this.mainData.bossListData, checkList)}`;

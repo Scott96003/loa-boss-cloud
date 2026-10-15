@@ -138,12 +138,7 @@ function updateBossData(bossData) {
       boss.respawnCount = boss.result.rebornCount;
 
       // 自動將 boss 的 death 與 emblem 同步為 deathList 中最新的一筆
-      if (typeof syncBossLatestDeathAndEmblem === "function") {
-        syncBossLatestDeathAndEmblem(boss);
-      } else if (boss.deathList.length > 0) {
-        boss.death = boss.deathList[0].death;
-        boss.emblem = boss.deathList[0].emblem || "";
-      }
+      syncBossLatestDeathAndEmblem(boss);
 
       // 當接收到的死亡紀錄為最新紀錄或死亡時間更新時觸發通告
       const isLatest = (boss.death === newDeathEntry.death);

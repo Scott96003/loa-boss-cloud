@@ -2,7 +2,7 @@
 
 - 審查日期：2026-10-15
 - 範圍：工作目錄中尚未提交的變更（`git diff HEAD`，共 13 個檔案）
-- 狀態：僅審查，尚未修改任何程式碼
+- 狀態：✅ 10 項皆已在工作目錄修正（尚未 commit／部署），詳見文末「修正紀錄」
 
 ## 背景：這次變更做了什麼
 
@@ -370,3 +370,22 @@ const latestDeath = getLatestDeathRecord(item)?.death ?? item.death;
 2. **部署前**：#2（設定所有 Webhook secret）、#4（避免漏發／重複發送）、#3（補上已死亡欄位）。
 3. **之後**：#5、#6、#7、#8。
 4. **整理**：#9、#10。
+
+---
+
+## 修正紀錄（2026-10-15）
+
+| # | 修正內容 |
+|---|---|
+| 1 | 移除 `defaultElderUrl`，長老 Webhook 改為只讀 `env.DISCORD_WEBHOOK_ELDER`。⚠️ **該 token 早已存在於 commit `8369913`（並推送至 GitHub），必須到 Discord 刪除並重新建立此 Webhook**，只改程式碼無法撤銷外洩。 |
+| 2 | 缺少 Webhook secret 時改為 `console.warn` 提示；`wrangler.toml` 註解列出需設定的 5 個 secret。**部署前仍需手動執行 `wrangler secret put`**。 |
+| 3 | 新增 `formatTimeDifference()` 與 `buildDiscordTableRow()`，表格資料補上 `已死亡`。長老擊殺通知（`sendElderDiscordWebhook`）原本也有同樣問題，一併修正。 |
+| 4 | `Sync_Boss_Data` 合併 config 時保留伺服器端的 `lastRefreshBossTime`；比較時以 `Number()` 轉型，避免舊資料中前端寫入的字串造成誤判。 |
+| 5 | 輪迴刷新的目標小時、分類篩選與表格改用 `Number(item.id)` 直接比對（活動統計仍維持 `% 100000`）。 |
+| 6 | 移除 Cron Trigger、`scheduled()` 與 `/api/scheduled-check`；Alarm 改為每個整點 +5 秒喚醒一次（每天約 24 次）。 |
+| 7 | 重啟時間過濾移到標記之前；`sendToCloudflareWorker` 回傳成功與否，失敗時移除去重標記，允許重試。 |
+| 8 | 移除取 `deathList[0]` 的錯誤後備分支，直接呼叫 `syncBossLatestDeathAndEmblem`。 |
+| 9 | `init.js`（兩處）與 `webrtc_client.js` 的內嵌複本改為呼叫共用函式；並更新 HTML 中這些腳本的 `?v=` 版本參數，避免瀏覽器混用新舊快取。 |
+| 10 | 兩個 Webhook 函式都改用 `buildDiscordTableRow()`（內部使用 `getLatestDeathRecord`），移除重複迴圈。 |
+
+**驗證：** 所有修改的 JS 檔通過 `node --check` 語法檢查；`wrangler deploy --dry-run` 打包成功。尚未在實際環境中測試整點推播。

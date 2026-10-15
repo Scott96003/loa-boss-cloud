@@ -204,20 +204,7 @@ async function loadAndInitializeBossData() {
                             isActive: false
                         });
                     }
-                    if (Array.isArray(b.deathList) && b.deathList.length > 0) {
-                        const sorted = [...b.deathList].filter(x => x && x.death).sort((a, b) => new Date(a.death) - new Date(b.death));
-                        if (sorted.length > 0) {
-                            const latest = sorted[sorted.length - 1];
-                            const latestDate = new Date(latest.death);
-                            const curDate = b.death ? new Date(b.death) : new Date(0);
-                            if (isNaN(curDate.getTime()) || latestDate >= curDate) {
-                                b.death = latest.death;
-                                if (latest.emblem !== undefined && latest.emblem !== null) {
-                                    b.emblem = latest.emblem;
-                                }
-                            }
-                        }
-                    }
+                    syncBossLatestDeathAndEmblem(b);
                 });
 
                 window.bossListData = bossListData;
@@ -302,22 +289,7 @@ function reDrawBossList() {
 
     // 使用 map 和 reduce 優化數據處理和最大死亡時間查找
     bossListData = bossListData.map(boss => {
-        if (typeof syncBossLatestDeathAndEmblem === "function") {
-            syncBossLatestDeathAndEmblem(boss);
-        } else if (Array.isArray(boss.deathList) && boss.deathList.length > 0) {
-            const sorted = [...boss.deathList].filter(x => x && x.death).sort((a, b) => new Date(a.death) - new Date(b.death));
-            if (sorted.length > 0) {
-                const latest = sorted[sorted.length - 1];
-                const latestDate = new Date(latest.death);
-                const curDate = boss.death ? new Date(boss.death) : new Date(0);
-                if (isNaN(curDate.getTime()) || latestDate >= curDate) {
-                    boss.death = latest.death;
-                    if (latest.emblem !== undefined && latest.emblem !== null) {
-                        boss.emblem = latest.emblem;
-                    }
-                }
-            }
-        }
+        syncBossLatestDeathAndEmblem(boss);
         // 在新增資料時計算並附加結果
         boss.result = findLostBoss(boss);
         boss.respawnCount = boss.result.rebornCount;

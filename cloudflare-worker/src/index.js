@@ -226,17 +226,4 @@ export default {
 
     return new Response("Not Found", { status: 404 });
   },
-
-  /**
-   * 處理 Cloudflare Cron Trigger 排程事件
-   */
-  async scheduled(event, env, ctx) {
-    try {
-      const roomId = env.BOSS_ROOM.idFromName("global-loa-boss-room");
-      const room = env.BOSS_ROOM.get(roomId);
-      await room.fetch("http://localhost/api/scheduled-check", { method: "POST" });
-    } catch (err) {
-      console.error("[CRON] 觸發輪迴排程失敗:", err);
-    }
-  },
 };

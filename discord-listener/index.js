@@ -265,8 +265,10 @@ async function sendToCloudflareWorker(deathInfo) {
     console.log(`🚀 [推播] 正在發送 Boss 死亡資料至 Cloudflare Worker:`, deathInfo);
     const resData = await postJson(WORKER_API_URL, { deathInfo });
     console.log(`✅ [推播成功] Cloudflare Worker 回應:`, resData);
+    return true;
   } catch (err) {
     console.error(`❌ [推播異常] 無法連線至 Cloudflare Worker:`, err.message);
+    return false;
   }
 }
 
@@ -668,12 +670,6 @@ function handleDispatchEvent(eventType, eventData) {
               console.log(`⏳ [略過重複擊殺] 30秒內已推播過: ${deathInfo.bossName} (${deathInfo.death})`);
               continue;
             }
-            recentPushedKills.set(killKey, now);
-            if (recentPushedKills.size > 200) {
-              for (const [k, t] of recentPushedKills.entries()) {
-                if (now - t > 30000) recentPushedKills.delete(k);
-              }
-            }
             // 過濾早於重啟時間的舊擊殺
             if (latestRebootTime) {
               const killTime = parseTaiwanDate(deathInfo.death);
@@ -682,8 +678,17 @@ function handleDispatchEvent(eventType, eventData) {
                 continue;
               }
             }
+            // 先標記以擋下同時進來的重複訊息；推播失敗則移除標記，讓之後的重送可以重試
+            recentPushedKills.set(killKey, now);
+            if (recentPushedKills.size > 200) {
+              for (const [k, t] of recentPushedKills.entries()) {
+                if (now - t > 30000) recentPushedKills.delete(k);
+              }
+            }
             console.log(`🎯 [捕獲擊殺] 成功解析到 Boss 擊殺訊息:`, deathInfo);
-            sendToCloudflareWorker(deathInfo);
+            sendToCloudflareWorker(deathInfo).then(ok => {
+              if (!ok) recentPushedKills.delete(killKey);
+            });
           }
         }
       }

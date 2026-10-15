@@ -108,7 +108,15 @@ function formatTableForDiscord(data, 顯示重生間隔 = true) {
     name: String(item.name),
     guild: String(item.guild),
     // 轉換為 Discord 的相對時間戳格式 (R)
-    已死亡: `<t:${Math.floor(new Date(item.death).getTime() / 1000)}:R>` 
+    已死亡: (() => {
+      let d = null;
+      if (item.death instanceof Date) {
+        d = isNaN(item.death.getTime()) ? null : item.death;
+      } else if (item.death && item.death !== "未知") {
+        d = typeof parseSafeDate === 'function' ? parseSafeDate(item.death) : new Date(item.death);
+      }
+      return (d && !isNaN(d.getTime())) ? `<t:${Math.floor(d.getTime() / 1000)}:R>` : "未知";
+    })() 
   }));
 
   // 3. 計算每一欄的最終顯示寬度 (columnWidths)
@@ -400,15 +408,21 @@ function makeListMsg(listID, 顯示重生間隔 = true) {
   // 都是在 bossListData 內
   const tableData = bossListData
     .filter(item => listID.includes(parseInt(item.id)))
-    .map(item => ({
-      // 確保這些 key 與 formatTableForDiscord 內部對 item[col.key] 的訪問一致
-      count: item.respawnCount, 
-      name: item.bossName,
-      spawnTime: item.重生間隔, 
-      guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : item.emblem, 
-      death: item.death, // 這裡只保留原始時間，不需格式化
-      已死亡: formatTimeDifference(item.已死亡) // 假設 formatTimeDifference 函數已定義
-    }));
+    .map(item => {
+      // 優先使用 getLatestDeathDate 抓取真正最新的死亡時間
+      let latestDeathDate = null;
+      if (typeof getLatestDeathDate === 'function') {
+        latestDeathDate = getLatestDeathDate(item);
+      }
+      return {
+        count: item.respawnCount, 
+        name: item.bossName,
+        spawnTime: item.重生間隔, 
+        guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : item.emblem, 
+        death: latestDeathDate || item.death,
+        已死亡: formatTimeDifference(item.已死亡)
+      };
+    });
     
   return formatTableForDiscord(tableData, 顯示重生間隔);
 }
@@ -448,13 +462,11 @@ setInterval(() => {
 
   // 3. 判斷是否需要更新
   if (newRange !== config.lastRefreshBossTime) {
-      // 假設 refresh() 是一個已定義的函數，用於更新 bossListData 內容
-      refresh(); 
-      console.log('--- 觸發更新：Boss 輪迴時間已切換為下一個小時 ---');
-      SendToDC(0); // 發送時間刷新訊息
-      
-      // 更新後設定時間
       config.lastRefreshBossTime = newRange;
+      // 更新 bossListData 內容
+      refresh(); 
+      console.log('--- 觸發更新：Boss 輪迴時間已切換為下一個小時 ---', newRange);
+      SendToDC(0); // 發送時間刷新訊息
   }
   
 }, 30 * 1000); // 30秒執行一次

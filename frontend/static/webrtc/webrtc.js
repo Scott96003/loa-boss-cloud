@@ -152,9 +152,9 @@ const WebRTCClientModule = (function() {
 
                 if (this.role === 'hub') {
                     this.connectAllOnlineUsers();
-                    // 啟動心跳
-                    this._startHeartbeat();
                 }
+                // 所有角色 (hub 與 spoke) 均啟動心跳，確保持續維持在線身分與 WebSocket 連線
+                this._startHeartbeat();
                 // 向伺服器索取目前完整的在線成員列表
                 this.getWsAllOnlineUsers();                
             };
@@ -175,19 +175,26 @@ const WebRTCClientModule = (function() {
             };
         }
 
-        // 新增心跳函數
+        // 新增心跳函數 (附帶使用者身分以實現伺服器休眠自癒)
         _startHeartbeat() {
             this._stopHeartbeat(); // 確保只運行一個計時器
             this.heartbeatInterval = setInterval(() => {
                 if (this.missPong > 2) {
-                    this.ui.appendMessage("WebSocket missPong 已超過", this.missPong, "次，websocket 斷開連線。");          
+                    this.ui.appendMessage(`WebSocket missPong 已超過 ${this.missPong} 次，重新建立連線...`);          
                     this.ws.close();
                     return;
                 }
                 if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    const currentUser = (typeof DiscordAuth !== 'undefined' && DiscordAuth.getUser)
+                        ? DiscordAuth.getUser()
+                        : (window.currentDiscordUser || (function() {
+                            try { return JSON.parse(localStorage.getItem("loa_boss_auth_user") || "null"); } catch { return null; }
+                        })());
+
                     const pingMessage = JSON.stringify({
                         type: 'ping',
-                        senderId: this.clientId
+                        senderId: this.clientId,
+                        user: currentUser || null
                     });
                     this.ws.send(pingMessage);
                     this.missPong += 1;
@@ -208,22 +215,9 @@ const WebRTCClientModule = (function() {
                 return;
             }
             
-            if (this.role === 'hub') {
-                this.reconnectAttempts++;
-                this.ui.appendMessage(`[HUB] 將在 ${this.reconnectInterval / 1000} 秒後嘗試第 ${this.reconnectAttempts} 次重連...`);
-                setTimeout(() => this._connectWebSocket(), this.reconnectInterval);
-                return;
-            } 
-            
-            if (this.role === 'spoke') {
-                if (this.dataChannels.size === 0) {
-                     this.reconnectAttempts++;
-                     this.ui.appendMessage(`[SPOKE] P2P 已斷線 (DataChannel 數: 0)，將在 ${this.reconnectInterval / 1000} 秒後嘗試第 ${this.reconnectAttempts} 次重連 WS...`);
-                     setTimeout(() => this._connectWebSocket(), this.reconnectInterval);
-                } else {
-                     this.ui.appendMessage("[SPOKE] WebSocket 連線已關閉。但仍有 P2P 連線活躍，不重連 WS。");
-                }
-            }
+            this.reconnectAttempts++;
+            this.ui.appendMessage(`[${this.role.toUpperCase()}] WebSocket 連線中斷，將在 ${this.reconnectInterval / 1000} 秒後嘗試第 ${this.reconnectAttempts} 次重連以保持在線清單...`);
+            setTimeout(() => this._connectWebSocket(), this.reconnectInterval);
         }
 
 
@@ -566,9 +560,8 @@ const WebRTCClientModule = (function() {
                 this.ui.appendMessage(`[P2P 成功連線] 數據通道已連線！與 [${id}]`);
                 this.ui.updatePeerStatus(id, this.peerConnections.get(id).iceConnectionState, channel.readyState);
                 
-                if (this.role === 'spoke' && this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this.ui.appendMessage(`[SPOKE] P2P 連線成功，正在中斷 WebSocket 信令連線...`);
-                    this.ws.close();
+                if (this.role === 'spoke') {
+                    this.ui.appendMessage(`[SPOKE] P2P 連線成功，維持 WebSocket 暢通以持續同步在線成員清單。`);
                 }
 
                 if (this.role  === 'spoke') {

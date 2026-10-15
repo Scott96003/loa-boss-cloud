@@ -519,7 +519,7 @@
         currentUsers = list;
 
         const pillCountSpan = document.getElementById("discordOnlineCount");
-        const countToDisplay = Math.max(currentUsers.length, typeof count === "number" ? count : 0);
+        const countToDisplay = currentUsers.length;
         if (pillCountSpan) pillCountSpan.textContent = countToDisplay;
 
         const countSpan = document.getElementById("discordDropdownCount");

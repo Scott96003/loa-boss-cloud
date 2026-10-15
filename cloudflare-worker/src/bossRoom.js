@@ -314,9 +314,50 @@ export class BossRoom {
   }
 
   /**
+   * 恢復 Durable Object 休眠喚醒後的 WebSocket Sessions
+   */
+  rehydrateSessions() {
+    try {
+      const sockets = this.state.getWebSockets();
+      for (const ws of sockets) {
+        if (!this.sessions.has(ws)) {
+          const attachment = ws.deserializeAttachment ? ws.deserializeAttachment() : null;
+          if (attachment) {
+            const { userId, clientId, user } = attachment;
+            this.sessions.set(ws, {
+              userId: userId || null,
+              clientId: clientId || null,
+              user: user || null
+            });
+            if (clientId) {
+              this.userToWs.set(clientId, ws);
+            }
+            if (user && userId) {
+              if (!this.onlineUsers.has(userId)) {
+                this.onlineUsers.set(userId, {
+                  user: user,
+                  sockets: new Set()
+                });
+              }
+              this.onlineUsers.get(userId).sockets.add(ws);
+            }
+          } else {
+            this.sessions.set(ws, { userId: null, clientId: null, user: null });
+          }
+        }
+      }
+    } catch (err) {
+      console.error("[REHYDRATE] 恢復連線狀態失敗:", err);
+    }
+  }
+
+  /**
    * 取得已去重的在線使用者清單 (依 online/idle 狀態與名稱排序)
    */
   getOnlineUsersList() {
+    // 確保休眠喚醒後自動恢復在線名單
+    this.rehydrateSessions();
+
     const list = [];
     for (const [uid, record] of this.onlineUsers.entries()) {
       if (record.sockets && record.sockets.size > 0) {
@@ -650,12 +691,19 @@ export class BossRoom {
       return;
     }
 
+    // 確保當前連線狀態已初始化或從 Attachment 恢復
+    if (!this.sessions.has(ws)) {
+      this.rehydrateSessions();
+    }
+    const currentSession = this.sessions.get(ws) || { userId: null, clientId: null, user: null };
+    if (!this.sessions.has(ws)) {
+      this.sessions.set(ws, currentSession);
+    }
+
     const messageType = data.type;
     const senderId = data.senderId;
     const targetId = data.targetId;
-    const currentSession = this.sessions.get(ws);
 
-    // 1. 客戶端註冊 (client_register)
     // 1. 客戶端註冊與在線狀態同步 (client_register / user_presence)
     if (messageType === 'client_register' || messageType === 'user_presence') {
       const user = data.user || null;
@@ -682,6 +730,19 @@ export class BossRoom {
           status: user.status || "online",
         };
         currentSession.user = userInfo;
+
+        // 保存狀態至 Cloudflare WebSocket Hibernation Attachment (休眠後仍可恢復)
+        if (ws.serializeAttachment) {
+          try {
+            ws.serializeAttachment({
+              clientId: senderId,
+              userId: effectiveId,
+              user: userInfo
+            });
+          } catch (e) {
+            console.warn("無法序列化 WebSocket 附件:", e);
+          }
+        }
 
         // 聚合進 onlineUsers (支援同帳號開多個分頁)
         if (!this.onlineUsers.has(effectiveId)) {
@@ -713,6 +774,15 @@ export class BossRoom {
       } else {
         // 未登入的連線只作為信令通訊客戶端，不列入在線名單
         currentSession.user = null;
+        if (ws.serializeAttachment) {
+          try {
+            ws.serializeAttachment({
+              clientId: senderId,
+              userId: null,
+              user: null
+            });
+          } catch {}
+        }
         console.log(`[REGISTER] 訪客/信令端點 '${senderId}' 已連線 (未登入，不列入在線成員清單)。`);
       }
 
@@ -745,8 +815,39 @@ export class BossRoom {
       return;
     }
 
-    // 2. 心跳檢測 (ping)
+    // 2. 心跳檢測 (ping) - 具備自癒登入狀態能力
     if (messageType === 'ping') {
+      if (data.user && (!currentSession || !currentSession.user)) {
+        const u = data.user;
+        const hasRealUser = u && u.id && !String(u.id).startsWith("SPK_") && !String(u.id).startsWith("HUB_");
+        if (hasRealUser) {
+          const effectiveId = String(u.id);
+          const userInfo = {
+            id: effectiveId,
+            username: u.username || "成員",
+            global_name: u.global_name || "",
+            nickname: u.nickname || null,
+            displayName: u.displayName || u.nickname || u.global_name || u.username || "在線成員",
+            avatar: u.avatar || null,
+            status: u.status || "online",
+          };
+          currentSession.user = userInfo;
+          currentSession.userId = effectiveId;
+          currentSession.clientId = senderId;
+          if (senderId) this.userToWs.set(senderId, ws);
+          if (!this.onlineUsers.has(effectiveId)) {
+            this.onlineUsers.set(effectiveId, { user: userInfo, sockets: new Set() });
+          }
+          this.onlineUsers.get(effectiveId).sockets.add(ws);
+          if (ws.serializeAttachment) {
+            try {
+              ws.serializeAttachment({ clientId: senderId, userId: effectiveId, user: userInfo });
+            } catch {}
+          }
+          this.broadcastOnlineUsers();
+        }
+      }
+
       ws.send(JSON.stringify({
         type: "pong",
         senderId: "server",
@@ -763,6 +864,15 @@ export class BossRoom {
         record.user.status = status;
         if (currentSession.user) {
           currentSession.user.status = status;
+        }
+        if (ws.serializeAttachment) {
+          try {
+            ws.serializeAttachment({
+              clientId: currentSession.clientId,
+              userId: currentSession.userId,
+              user: currentSession.user
+            });
+          } catch {}
         }
         this.broadcastOnlineUsers();
       }
@@ -941,13 +1051,28 @@ export class BossRoom {
         }
       });
 
-      const elderData = sortedElders.map(item => ({
-        count: item.respawnCount !== undefined ? item.respawnCount : 0,
-        name: item.bossName,
-        spawnTime: item.重生間隔 || getSpawnRange(now, 7),
-        guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
-        death: item.death
-      }));
+      const elderData = sortedElders.map(item => {
+        let latestDeath = item.death;
+        if (Array.isArray(item.deathList) && item.deathList.length > 0) {
+          let latestDate = parseTaiwanDate(item.death);
+          for (const dl of item.deathList) {
+            if (dl && dl.death) {
+              const d = parseTaiwanDate(dl.death);
+              if (d && (!latestDate || d.getTime() > latestDate.getTime())) {
+                latestDate = d;
+                latestDeath = dl.death;
+              }
+            }
+          }
+        }
+        return {
+          count: item.respawnCount !== undefined ? item.respawnCount : 0,
+          name: item.bossName,
+          spawnTime: item.重生間隔 || getSpawnRange(now, 7),
+          guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
+          death: latestDeath
+        };
+      });
 
       // 3. 格式化等寬表格與活動統計字串
       const tableMsg = formatTableForDiscord(elderData, true);

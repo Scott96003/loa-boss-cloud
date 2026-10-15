@@ -709,40 +709,112 @@ function formatTimeDifference(timeDiff) {
 }
 
 /**
+ * 安全解析日期字串為 Date 物件 (相容 Safari 與各主流瀏覽器)
+ * @param {string|Date} dateInput 
+ * @returns {Date|null}
+ */
+function parseSafeDate(dateInput) {
+  if (!dateInput) return null;
+  if (dateInput instanceof Date) return isNaN(dateInput.getTime()) ? null : dateInput;
+  const str = String(dateInput).trim();
+  if (str === "未知" || str === "" || str === "undefined" || str === "null") return null;
+
+  // 匹配 YYYY-MM-DD HH:mm(:ss)? 格式
+  const match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const month = parseInt(match[2], 10) - 1;
+    const day = parseInt(match[3], 10);
+    const hour = match[4] ? parseInt(match[4], 10) : 0;
+    const minute = match[5] ? parseInt(match[5], 10) : 0;
+    const second = match[6] ? parseInt(match[6], 10) : 0;
+    const d = new Date(year, month, day, hour, minute, second);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * 取得 Boss 最近一次（上次）死亡時間
+ * @param {object} bossData - boss 資料
+ * @returns {Date|null} - 最近一次死亡時間
+ */
+function getLatestDeathDate(bossData) {
+  let latestDate = null;
+
+  // 1. 優先檢查主要死亡時間屬性 (bossData.death)
+  if (bossData.death && bossData.death !== "未知") {
+    const d = parseSafeDate(bossData.death);
+    if (d) {
+      latestDate = d;
+    }
+  }
+
+  // 2. 檢查 deathList 中的歷史記錄，找出最新的一筆
+  if (Array.isArray(bossData.deathList) && bossData.deathList.length > 0) {
+    for (const item of bossData.deathList) {
+      if (item && item.death && item.death !== "未知") {
+        const d = parseSafeDate(item.death);
+        if (d) {
+          if (!latestDate || d.getTime() > latestDate.getTime()) {
+            latestDate = d;
+          }
+        }
+      }
+    }
+  }
+
+  return latestDate;
+}
+
+/**
  * 取得 boss 的時間間隔
  * @param {object} bossData - boss 資料
  * @returns {Date} - 時間間隔的 Date 物件
  */
 function getTimeGap(bossData) {
   if (bossData.deathList == null) {
-    bossData.deathList = []
+    bossData.deathList = [];
   }
-  bossData.deathList = bossData.deathList.filter(item => item.emblem !== undefined);
-  if (bossData.deathList.length > 1) {
-    var timeB = bossData.deathList[0].death
-    const timeDifference = new Date() - new Date(timeB);
-    var timeDiffFix = Math.abs(timeDifference);
-    return new Date(timeDiffFix);
+  bossData.deathList = bossData.deathList.filter(item => item && item.emblem !== undefined);
+  const latestDeath = getLatestDeathDate(bossData);
+  if (latestDeath) {
+    const timeDifference = Math.max(0, new Date().getTime() - latestDeath.getTime());
+    return new Date(timeDifference);
   } else {
-    return new Date(0)
+    return new Date(0);
   }
 }
 
 /**
- * 取得 boss 的時間差
+ * 取得 boss 的時間差（距離上次死亡經過的毫秒數）
  * @param {object} bossData - boss 資料
  */
 function getTimeDiff(bossData) {
   if (bossData.deathList == null) {
-    bossData.deathList = []
+    bossData.deathList = [];
   }
-  bossData.deathList = bossData.deathList.filter(item => item.emblem !== undefined);
+  bossData.deathList = bossData.deathList.filter(item => item && item.emblem !== undefined);
 
-  let timeB = bossData.deathList[0]?.death || config.rebootTime
-  let timeDifference = new Date() - new Date(timeB);
-  let timeDiffFix = Math.abs(timeDifference);
+  const latestDeath = getLatestDeathDate(bossData);
+  const now = new Date();
 
-  bossData.已死亡 = timeDiffFix
+  if (latestDeath) {
+    // 優先使用最近一次死亡時間計算時間差
+    let timeDifference = now.getTime() - latestDeath.getTime();
+    bossData.已死亡 = Math.max(0, timeDifference);
+  } else {
+    // 若無死亡記錄（如尚未擊殺過），以伺服器重開機時間計算
+    const reboot = parseSafeDate(config.rebootTime);
+    if (reboot) {
+      let timeDifference = now.getTime() - reboot.getTime();
+      bossData.已死亡 = Math.max(0, timeDifference);
+    } else {
+      bossData.已死亡 = 0;
+    }
+  }
 }
 
 /**

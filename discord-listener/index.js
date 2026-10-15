@@ -618,6 +618,10 @@ function sendIdentify() {
   ws.send(JSON.stringify(identifyPayload));
 }
 
+// 已處理訊息 ID 與擊殺紀錄快取 (防重覆)
+const processedMessageIds = new Set();
+const recentPushedKills = new Map();
+
 function handleDispatchEvent(eventType, eventData) {
   if (eventType === "READY") {
     console.log(`🎉 [驗證成功] 已成功登入 Discord 帳號: ${eventData.user.username}#${eventData.user.discriminator || "0"}`);
@@ -630,6 +634,17 @@ function handleDispatchEvent(eventType, eventData) {
 
   // 監聽新訊息事件
   if (eventType === "MESSAGE_CREATE") {
+    if (eventData.id) {
+      if (processedMessageIds.has(eventData.id)) {
+        return; // 重複訊息直接略過
+      }
+      processedMessageIds.add(eventData.id);
+      if (processedMessageIds.size > 1000) {
+        const oldestId = processedMessageIds.values().next().value;
+        processedMessageIds.delete(oldestId);
+      }
+    }
+
     // 1. 檢查是否為伺服器重啟公告頻道
     if (eventData.channel_id === REBOOT_CHANNEL_ID) {
       const content = eventData.content || "";
@@ -647,6 +662,18 @@ function handleDispatchEvent(eventType, eventData) {
         for (const embed of eventData.embeds) {
           const deathInfo = parseBossEmbed(embed);
           if (deathInfo) {
+            const killKey = `${deathInfo.id}_${deathInfo.bossName}_${deathInfo.death}_${deathInfo.emblem || ''}`;
+            const now = Date.now();
+            if (recentPushedKills.has(killKey) && (now - recentPushedKills.get(killKey) < 30000)) {
+              console.log(`⏳ [略過重複擊殺] 30秒內已推播過: ${deathInfo.bossName} (${deathInfo.death})`);
+              continue;
+            }
+            recentPushedKills.set(killKey, now);
+            if (recentPushedKills.size > 200) {
+              for (const [k, t] of recentPushedKills.entries()) {
+                if (now - t > 30000) recentPushedKills.delete(k);
+              }
+            }
             // 過濾早於重啟時間的舊擊殺
             if (latestRebootTime) {
               const killTime = parseTaiwanDate(deathInfo.death);

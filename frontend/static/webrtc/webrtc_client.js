@@ -25,6 +25,22 @@ function webRTC_handleMessage(peerId, received) {
                                 isActive: false
                             });
                         }
+                        if (typeof syncBossLatestDeathAndEmblem === "function") {
+                            syncBossLatestDeathAndEmblem(b);
+                        } else if (Array.isArray(b.deathList) && b.deathList.length > 0) {
+                            const sorted = [...b.deathList].filter(x => x && x.death).sort((a, b) => new Date(a.death) - new Date(b.death));
+                            if (sorted.length > 0) {
+                                const latest = sorted[sorted.length - 1];
+                                const latestDate = new Date(latest.death);
+                                const curDate = b.death ? new Date(b.death) : new Date(0);
+                                if (isNaN(curDate.getTime()) || latestDate >= curDate) {
+                                    b.death = latest.death;
+                                    if (latest.emblem !== undefined && latest.emblem !== null) {
+                                        b.emblem = latest.emblem;
+                                    }
+                                }
+                            }
+                        }
                     });
                     window.bossListData = bossListData;
                 }

@@ -12,3 +12,7 @@ bindings = [
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["BossRoom"]
+
+# 啟用 Cloudflare Cron Triggers 每分鐘定時檢查輪迴刷新
+[triggers]
+crons = ["* * * * *"]

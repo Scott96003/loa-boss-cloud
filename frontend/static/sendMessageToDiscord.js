@@ -428,8 +428,9 @@ function makeListMsg(listID, 顯示重生間隔 = true) {
 }
 
 // --- 輪詢與時間判斷邏輯 ---
-
-// 設定每 30 秒執行一次時間檢查
+// ⚠️ 注意：輪迴時間刷新的 Webhook 推播已全面遷移至 Cloudflare Worker 後端 (Durable Object Alarm / Cron) 統一處理，
+// 徹底避免多位成員同時開啟網頁造成 Discord 重複發送洗版，並確保無人開啟網頁時依然準時推播。
+// 前端此處僅負責更新本機儀表板介面 (refresh)，不再由前端直接發送 Webhook。
 setInterval(() => {
   const now = new Date();
   const hours = now.getHours();
@@ -444,29 +445,18 @@ setInterval(() => {
   
   // 邊界檢查：如果沒有任何 Boss 資料
   if (allTargetHours.length === 0) {
-      console.log('🚨 找不到任何 Boss 資料來計算重生輪迴時間。');
       return; 
   }
 
   // 2. 找到下一個最近的小時
-  // 找出「大於或等於當前小時」的 Boss 時間 (今天的下一個小時)
   const nextHourToday = allTargetHours.find(h => h >= hours);
+  const newRange = nextHourToday !== undefined ? nextHourToday : allTargetHours[0];
 
-  // 決定 newRange (下一個應切換的小時)
-  const newRange = nextHourToday !== undefined
-    ? nextHourToday         // 今天還有，就選它
-    : allTargetHours[0];    // 今天已過完，選明天的第一個 (即陣列的第一個元素)
-
-  // 輔助訊息輸出
-  console.log(`[${hours}:${String(minutes).padStart(2, '0')}] 檢查時間，上次更新小時: ${config.lastRefreshBossTime}，預計切換至: ${newRange}`);
-
-  // 3. 判斷是否需要更新
+  // 3. 判斷是否需要更新本機儀表板
   if (newRange !== config.lastRefreshBossTime) {
       config.lastRefreshBossTime = newRange;
-      // 更新 bossListData 內容
       refresh(); 
-      console.log('--- 觸發更新：Boss 輪迴時間已切換為下一個小時 ---', newRange);
-      SendToDC(0); // 發送時間刷新訊息
+      console.log('--- 本機介面更新：Boss 輪迴時間已切換至下一個小時 ---', newRange);
   }
   
 }, 30 * 1000); // 30秒執行一次

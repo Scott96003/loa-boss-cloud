@@ -29,8 +29,34 @@ if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage)
   console.log("ℹ️ [環境提示] 運行於純 Web 環境，將由 WebSocket / WebRTC 接收即時擊殺推播。");
 }
 
+// 最近擊殺快取 (用於防抖去重，避免多重管道或多監聽器導致短時間內重複跳出兩次通報)
+const _recentKillDedupeCache = new Map();
+
+function _isDuplicateKillEvent(bossData) {
+  if (!bossData || !bossData.death) return false;
+  const key = `${bossData.id || ''}_${bossData.bossName || ''}_${bossData.death}_${bossData.emblem || ''}_${bossData.type || 0}`;
+  const now = Date.now();
+  if (_recentKillDedupeCache.has(key)) {
+    const prevTime = _recentKillDedupeCache.get(key);
+    if (now - prevTime < 30000) { // 30 秒內視為重複推播
+      return true;
+    }
+  }
+  _recentKillDedupeCache.set(key, now);
+  if (_recentKillDedupeCache.size > 200) {
+    for (const [k, t] of _recentKillDedupeCache.entries()) {
+      if (now - t > 30000) _recentKillDedupeCache.delete(k);
+    }
+  }
+  return false;
+}
+
 // 監聽來自 Background Script 的消息 (Step2)
 function updateBossData(bossData) {
+  if (_isDuplicateKillEvent(bossData)) {
+    console.log("ℹ️ [防抖去重] 30秒內已處理過相同 Boss 擊殺推播，略過重複通報:", bossData.bossName, bossData.death, bossData.emblem);
+    return;
+  }
 
   bossListData.forEach(function (item, index) {
     // 活動boss id 增加100000
@@ -111,15 +137,22 @@ function updateBossData(bossData) {
       boss.result = findLostBoss(boss);
       boss.respawnCount = boss.result.rebornCount;
 
-      // 在這裡進行當前死亡時間跟準備新增的時間做大小比較
-      if (item.death == "" || (new Date(item.death) < new Date(newDeathEntry.death))) {
-        // 當死亡時間比現在大
-        bossListData[index].death = newDeathEntry.death;
-        bossListData[index].emblem = newDeathEntry.emblem;
-        // bossData.bossName = bossListData[index].bossName
+      // 自動將 boss 的 death 與 emblem 同步為 deathList 中最新的一筆
+      if (typeof syncBossLatestDeathAndEmblem === "function") {
+        syncBossLatestDeathAndEmblem(boss);
+      } else if (boss.deathList.length > 0) {
+        boss.death = boss.deathList[0].death;
+        boss.emblem = boss.deathList[0].emblem || "";
+      }
+
+      // 當接收到的死亡紀錄為最新紀錄或死亡時間更新時觸發通告
+      const isLatest = (boss.death === newDeathEntry.death);
+      if (isLatest || item.death == "" || (new Date(item.death) <= new Date(newDeathEntry.death))) {
+        bossListData[index].death = boss.death;
+        bossListData[index].emblem = boss.emblem;
         if (bossData.type == 0) {
           //發出死亡通告
-          speak(item.bossName + "已被" + newDeathEntry.emblem + "擊殺");
+          speak(item.bossName + "已被" + (newDeathEntry.emblem || "未知血盟") + "擊殺");
         }
         // 增加死亡訊息
         addMessage(bossData);
@@ -131,6 +164,8 @@ function updateBossData(bossData) {
 
         // 檢查是否觸發龍門
         tracker.checkBossData(bossData);
+      } else {
+        updateBossRemainingTime(parseInt(boss.id));
       }
     }
   });

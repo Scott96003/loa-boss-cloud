@@ -125,6 +125,16 @@ function insertBoss(data) {
  * @param {object} data - boss 資料
  */
 function addBossTR(data) {
+  if (typeof syncBossLatestDeathAndEmblem === "function") {
+    syncBossLatestDeathAndEmblem(data);
+  }
+  if (!columnConfig || columnConfig.length === 0) {
+    if (typeof loadColumnConfig === "function") {
+      loadColumnConfig();
+    } else if (typeof defaultColumnConfig !== "undefined") {
+      columnConfig = [...defaultColumnConfig];
+    }
+  }
   var bossName = data.bossName;
   var respawnTime = parseInt(data.respawnTime);
   var deathTime = data.death; // 使用当前时间作为死亡时间
@@ -498,6 +508,10 @@ function updateBossRemainingTime(bossID = 0) {
       return;
     }
 
+    if (typeof syncBossLatestDeathAndEmblem === "function") {
+      syncBossLatestDeathAndEmblem(bossData);
+    }
+
     // 取得 row
     var row = document.getElementById("boss_" + bossData.id);
     if (!row) return; // 安全檢查
@@ -558,7 +572,9 @@ function updateBossRemainingTime(bossID = 0) {
     }
 
     const activeRateCell = row.querySelector('[data-col-id="active-rate"]');
-    activeRateCell.innerHTML = msgFromActive([parseInt(bossData.id)]);
+    if (activeRateCell) {
+      activeRateCell.innerHTML = msgFromActive([parseInt(bossData.id)]);
+    }
 
     // 判斷 Boss 出現的機率並設定行樣式
     let bossUprate = Math.abs(100 - percentage) + (bossData.respawnCount > getBossCount(bossData) ? 50 : 0)
@@ -618,6 +634,10 @@ function msgFromActive(bossIds) {
  * @returns {object} - 包含重生次數和時間區段的物件
  */
 function findLostBoss(bossData) {
+  if (!bossData || !Array.isArray(bossData.deathList)) {
+    if (bossData) bossData.deathList = [];
+    return { rebornCount: 1, segments: [] };
+  }
   const bossDurationHour = bossData.respawnTime;
   const deathTime = bossData.deathList;
   const segmentDuration = bossDurationHour * 60 * 60 * 1000;
@@ -768,6 +788,50 @@ function getLatestDeathDate(bossData) {
 
   return latestDate;
 }
+
+/**
+ * 取得 Boss 在 deathList 中最新的一筆死亡紀錄物件
+ * @param {object} bossData - boss 資料
+ * @returns {object|null}
+ */
+function getLatestDeathRecord(bossData) {
+  if (!bossData || !Array.isArray(bossData.deathList) || bossData.deathList.length === 0) {
+    return null;
+  }
+  let latestItem = null;
+  let latestDate = null;
+  for (const item of bossData.deathList) {
+    if (item && item.death && item.death !== "未知") {
+      const d = parseSafeDate(item.death);
+      if (d) {
+        if (!latestDate || d.getTime() > latestDate.getTime()) {
+          latestDate = d;
+          latestItem = item;
+        }
+      }
+    }
+  }
+  return latestItem;
+}
+
+/**
+ * 同步單一 Boss 的 death 與 emblem 為 deathList 中最新的一筆
+ * @param {object} bossData - boss 資料
+ */
+function syncBossLatestDeathAndEmblem(bossData) {
+  const latest = getLatestDeathRecord(bossData);
+  if (latest) {
+    const currentDeathDate = parseSafeDate(bossData.death);
+    const latestDate = parseSafeDate(latest.death);
+    if (!currentDeathDate || (latestDate && latestDate.getTime() >= currentDeathDate.getTime())) {
+      bossData.death = latest.death;
+      if (latest.emblem !== undefined && latest.emblem !== null) {
+        bossData.emblem = latest.emblem;
+      }
+    }
+  }
+}
+
 
 /**
  * 取得 boss 的時間間隔

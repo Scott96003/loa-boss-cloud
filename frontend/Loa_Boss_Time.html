@@ -2,6 +2,7 @@
 <html lang="en">
 
 <head>
+    <base href="/">
     <script>
         // 嚴格前置路由守衛：在下載任何業務資源之前，先檢查本地登入憑證；未登入者立即踢回門戶頁
         (function () {
@@ -9,7 +10,7 @@
             if (params.get("code")) return;
             var token = localStorage.getItem("loa_boss_auth_token") || localStorage.getItem("loa_boss_auth_jwt");
             if (!token) {
-                window.location.replace("index.html");
+                window.location.replace("/");
             }
         })();
     </script>
@@ -336,19 +337,19 @@
     <script type="text/javascript" src="./static/config.js"></script>
     <script type="text/javascript" src="./static/auth.js?v=20261015_presence_fix"></script>
     <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_presence_fix"></script>
-    <script type="text/javascript" src="./static/init.js?v=20261015_killlog"></script>
+    <script type="text/javascript" src="./static/init.js?v=20261015_sync_death"></script>
     <script type="text/javascript" src="./static/save.js?v=1"></script>
     <script type="text/javascript" src="./static/db.js"></script>
     <script type="text/javascript" src="./static/tablefunc.js"></script>
     <script type="text/javascript" src="./static/bossList.js"></script>
     <script type="text/javascript" src="./static/bossTooltip.js"></script>
-    <script type="text/javascript" src="./static/dashboard.js?v=20261015_death_fix"></script>
-    <script type="text/javascript" src="./static/messageListen.js"></script>
+    <script type="text/javascript" src="./static/dashboard.js?v=20261015_sync_death"></script>
+    <script type="text/javascript" src="./static/messageListen.js?v=20261015_dedupe"></script>
     <script type="text/javascript" src="./static/sendMessageToDiscord.js?v=20261015_death_fix"></script>
     <script type="text/javascript" src="./static/onLoading.js?v=1"></script>
     <script type="text/javascript" src="./static/dragonGate.js"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_presence_fix"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc_client.js?v=20261015_presence_fix"></script>
+    <script type="text/javascript" src="./static/webrtc/webrtc_client.js?v=20261015_sync_death"></script>
 
 
 </head>

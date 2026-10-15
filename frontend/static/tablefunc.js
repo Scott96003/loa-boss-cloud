@@ -14,8 +14,11 @@ const defaultColumnConfig = [
 ];
 
 // 全域變數：用於儲存當前使用的配置
-var columnConfig = []; 
+var columnConfig = [...defaultColumnConfig]; 
 const CONFIG_STORAGE_KEY = 'bossListColumnConfig';
+try {
+  loadColumnConfig();
+} catch (e) {}
 
 let draggedHeader = null;
 

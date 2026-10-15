@@ -284,7 +284,7 @@
         document.body.classList.remove("authenticated");
         if (!isGatewayPage()) {
             // 在主監控頁若憑證失效或未登入，直接重定向回登入門戶，絕不暴露內部代碼
-            window.location.replace("index.html");
+            window.location.replace("/");
             return;
         }
         const overlay = document.getElementById("discordAuthOverlay");

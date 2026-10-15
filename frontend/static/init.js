@@ -190,7 +190,7 @@ async function loadAndInitializeBossData() {
                 console.log("☁️ 成功自 Cloudflare Worker 載入雲端最新 Boss 資料！共", cloudJson.bossListData.length, "隻");
                 bossListData = cloudJson.bossListData;
                 
-                // 防呆確保：每隻有死亡時間的 Boss 其 deathList 都至少有該筆紀錄供 Tooltip 顯示
+                // 防呆確保：每隻有死亡時間的 Boss 其 deathList 都至少有該筆紀錄供 Tooltip 顯示，並同步最新死亡紀錄
                 bossListData.forEach(b => {
                     if (!b.deathList || !Array.isArray(b.deathList)) {
                         b.deathList = [];
@@ -203,6 +203,20 @@ async function loadAndInitializeBossData() {
                             type: b.type || 0,
                             isActive: false
                         });
+                    }
+                    if (Array.isArray(b.deathList) && b.deathList.length > 0) {
+                        const sorted = [...b.deathList].filter(x => x && x.death).sort((a, b) => new Date(a.death) - new Date(b.death));
+                        if (sorted.length > 0) {
+                            const latest = sorted[sorted.length - 1];
+                            const latestDate = new Date(latest.death);
+                            const curDate = b.death ? new Date(b.death) : new Date(0);
+                            if (isNaN(curDate.getTime()) || latestDate >= curDate) {
+                                b.death = latest.death;
+                                if (latest.emblem !== undefined && latest.emblem !== null) {
+                                    b.emblem = latest.emblem;
+                                }
+                            }
+                        }
                     }
                 });
 
@@ -288,6 +302,22 @@ function reDrawBossList() {
 
     // 使用 map 和 reduce 優化數據處理和最大死亡時間查找
     bossListData = bossListData.map(boss => {
+        if (typeof syncBossLatestDeathAndEmblem === "function") {
+            syncBossLatestDeathAndEmblem(boss);
+        } else if (Array.isArray(boss.deathList) && boss.deathList.length > 0) {
+            const sorted = [...boss.deathList].filter(x => x && x.death).sort((a, b) => new Date(a.death) - new Date(b.death));
+            if (sorted.length > 0) {
+                const latest = sorted[sorted.length - 1];
+                const latestDate = new Date(latest.death);
+                const curDate = boss.death ? new Date(boss.death) : new Date(0);
+                if (isNaN(curDate.getTime()) || latestDate >= curDate) {
+                    boss.death = latest.death;
+                    if (latest.emblem !== undefined && latest.emblem !== null) {
+                        boss.emblem = latest.emblem;
+                    }
+                }
+            }
+        }
         // 在新增資料時計算並附加結果
         boss.result = findLostBoss(boss);
         boss.respawnCount = boss.result.rebornCount;

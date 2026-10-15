@@ -28,6 +28,11 @@ function parseTaiwanDate(dateStr) {
 
 // 魂塔長老分類之所有 Boss ID (共 8 隻)
 const ELDER_BOSS_IDS = [45955, 45956, 45957, 45958, 45959, 45960, 45961, 45962];
+const CAMP_BOSS_IDS = [81082, 45685, 45674, 45625, 45753];
+const TOWER_BOSS_IDS = [45606, 45653, 45654, 45618, 45672, 45673];
+const TOWER_ALL_BOSS_IDS = [45513, 45547, 45606, 45650, 45652, 45653, 45654, 45618, 45672, 45673];
+const WILD_BOSS_IDS = [45614, 45801, 46142, 46141, 99085, 99086, 99065, 45863];
+const ALL_DC_CHECK_BOSS_IDS = [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_ALL_BOSS_IDS, ...WILD_BOSS_IDS];
 
 // 設定計算輪迴的基礎時間 (台灣時間 2024-01-04 12:00:00)
 const BASE_TIME = '2024-01-04T12:00:00+08:00';
@@ -130,6 +135,48 @@ function refreshBossComputedFields(boss, rebootTime, now = new Date()) {
   boss.result = findLostBoss(boss, rebootTime, now);
   boss.respawnCount = boss.result.rebornCount;
 }
+
+/**
+ * 取得 Boss 在 deathList 中最新的一筆死亡紀錄物件
+ */
+function getLatestDeathRecord(bossData) {
+  if (!bossData || !Array.isArray(bossData.deathList) || bossData.deathList.length === 0) {
+    return null;
+  }
+  let latestItem = null;
+  let latestDate = null;
+  for (const item of bossData.deathList) {
+    if (item && item.death && item.death !== "未知") {
+      const d = parseTaiwanDate(item.death);
+      if (d) {
+        if (!latestDate || d.getTime() > latestDate.getTime()) {
+          latestDate = d;
+          latestItem = item;
+        }
+      }
+    }
+  }
+  return latestItem;
+}
+
+/**
+ * 自動將單一 Boss 的 death 與 emblem 同步為其 deathList 中最新的一筆
+ */
+function syncBossLatestDeathAndEmblem(bossData) {
+  const latest = getLatestDeathRecord(bossData);
+  if (latest) {
+    const currentDeathDate = parseTaiwanDate(bossData.death);
+    const latestDate = parseTaiwanDate(latest.death);
+    // 若目前死亡時間為空、未知，或最新紀錄晚於等於當前死亡時間，同步之
+    if (!currentDeathDate || (latestDate && latestDate.getTime() >= currentDeathDate.getTime())) {
+      bossData.death = latest.death;
+      if (latest.emblem !== undefined && latest.emblem !== null) {
+        bossData.emblem = latest.emblem;
+      }
+    }
+  }
+}
+
 
 /**
  * 計算字串顯示寬度 (全形=2, 半形=1)
@@ -310,7 +357,32 @@ export class BossRoom {
       if (savedData && savedData.bossListData && savedData.bossListData.length > 0) {
         this.mainData = { ...this.mainData, ...savedData };
       }
+      try {
+        const currentAlarm = await this.storage.getAlarm();
+        if (currentAlarm === null) {
+          await this.storage.setAlarm(Date.now() + 30 * 1000);
+        }
+      } catch (err) {
+        console.warn("[ALARM] 初始化 Alarm 失敗:", err);
+      }
     });
+  }
+
+  /**
+   * Cloudflare Durable Object Alarm 定時喚醒處理
+   */
+  async alarm() {
+    try {
+      await this.checkAndTriggerRespawnCycle();
+    } catch (err) {
+      console.error("[ALARM] 執行輪迴排程檢查失敗:", err);
+    } finally {
+      try {
+        await this.storage.setAlarm(Date.now() + 30 * 1000);
+      } catch (e) {
+        console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
+      }
+    }
   }
 
   /**
@@ -474,7 +546,8 @@ export class BossRoom {
           }
         }
 
-        // 重新依據最新的截止時間/重開機時間矯正 Boss 的區段與存活數
+        // 同步並重新依據最新的截止時間/重開機時間矯正 Boss 的區段與存活數
+        syncBossLatestDeathAndEmblem(boss);
         refreshBossComputedFields(boss, cutoffDate, now);
       });
     }
@@ -538,8 +611,9 @@ export class BossRoom {
     if (url.pathname === "/api/boss-data") {
       const { cutoffDate } = this.cleanupOldData();
 
-      // 1. 防呆補齊：確保每隻有死亡時間的 Boss 其 deathList 都至少有該筆資料
+      // 1. 防呆補齊與校正：確保每隻有死亡時間的 Boss 其 deathList 都至少有該筆資料，且 death/emblem 與 deathList 最新紀錄保持一致
       if (this.mainData.bossListData && Array.isArray(this.mainData.bossListData)) {
+        let hasModified = false;
         this.mainData.bossListData.forEach(b => {
           if (!b.deathList || !Array.isArray(b.deathList)) {
             b.deathList = [];
@@ -552,8 +626,19 @@ export class BossRoom {
               type: b.type || 0,
               isActive: false
             });
+            hasModified = true;
+          }
+          const prevDeath = b.death;
+          const prevEmblem = b.emblem;
+          syncBossLatestDeathAndEmblem(b);
+          if (b.death !== prevDeath || b.emblem !== prevEmblem) {
+            hasModified = true;
           }
         });
+        if (hasModified) {
+          this.mainData.last_updated = new Date().toISOString();
+          this.storage.put("mainData", this.mainData);
+        }
       }
 
       // 2. 自動匯總：將每隻 Boss 的 deathList 歷史與現有 messageList 結合，生成有效區間內的完整擊殺清單
@@ -604,6 +689,12 @@ export class BossRoom {
         messageList: sortedMessageList,
         last_updated: this.mainData.last_updated
       }, { headers: corsHeaders });
+    }
+
+    // API: 定時觸發輪迴檢查 (供 Cron 或內部呼叫)
+    if (url.pathname === "/api/scheduled-check" && request.method === "POST") {
+      const result = await this.checkAndTriggerRespawnCycle();
+      return Response.json({ success: true, ...result }, { headers: corsHeaders });
     }
 
     // API: 外部發送 Boss 死亡通知 (供外部 Bot / 爬蟲直接 POST 觸發)
@@ -911,6 +1002,9 @@ export class BossRoom {
     if (BROADCAST_MESSAGE_TYPES.has(messageType)) {
       // 若收到全量同步資料，將其持久化保存
       if (messageType === 'Sync_Boss_Data') {
+        if (Array.isArray(data.bossListData)) {
+          data.bossListData.forEach(b => syncBossLatestDeathAndEmblem(b));
+        }
         this.mainData.bossListData = data.bossListData;
         this.mainData.config = data.config;
         this.mainData.gateOpenTime = data.gateOpenTime;
@@ -1126,19 +1220,22 @@ export class BossRoom {
 
     // 1. 同步更新記憶體與持久化狀態中的 Boss 死亡資料與 deathList
     if (this.mainData.bossListData && Array.isArray(this.mainData.bossListData)) {
+      const normalizeName = (name) => String(name || '').replace(/[・．\s]/g, '').replace(/^活動/, '');
+      const dNameNorm = normalizeName(deathInfo.bossName);
+
       matchedBoss = this.mainData.bossListData.find(b => {
         const bId = Number(b.id);
         const dId = Number(deathInfo.id);
+        const bNameNorm = normalizeName(b.bossName);
         return String(b.id) === String(deathInfo.id) ||
                (bId && dId && bId + 100000 === dId) ||
+               (bId && dId && bId === dId % 100000) ||
                b.bossName === deathInfo.bossName ||
-               (`活動${b.bossName}` === deathInfo.bossName);
+               (`活動${b.bossName}` === deathInfo.bossName) ||
+               (bNameNorm && dNameNorm && bNameNorm === dNameNorm);
       });
 
       if (matchedBoss) {
-        matchedBoss.death = deathInfo.death;
-        if (deathInfo.emblem) matchedBoss.emblem = deathInfo.emblem;
-
         if (!matchedBoss.deathList || !Array.isArray(matchedBoss.deathList)) {
           matchedBoss.deathList = [];
         }
@@ -1149,10 +1246,22 @@ export class BossRoom {
           type: deathInfo.type || 0,
           isActive: Boolean(deathInfo.isActive || Number(deathInfo.id) > 100000)
         };
+        const alreadyExists = matchedBoss.deathList.some(
+          item => item.death === deathEntry.death && (item.emblem || '') === (deathEntry.emblem || '')
+        );
+        if (alreadyExists && matchedBoss.death === deathEntry.death) {
+          console.log(`[略過重複擊殺] Boss ${deathInfo.bossName} 於 ${deathInfo.death} (${deathInfo.emblem}) 已記錄，略過重複推播與廣播。`);
+          return {
+            success: true,
+            message: "擊殺紀錄已存在，略過重複廣播",
+            duplicate: true
+          };
+        }
         if (!matchedBoss.deathList.some(item => item.death === deathEntry.death)) {
           matchedBoss.deathList.push(deathEntry);
         }
         matchedBoss.deathList.sort((a, b) => new Date(a.death) - new Date(b.death));
+        syncBossLatestDeathAndEmblem(matchedBoss);
         refreshBossComputedFields(matchedBoss, this.mainData.config?.rebootTime, new Date());
       }
 
@@ -1200,5 +1309,164 @@ export class BossRoom {
       message: "Boss 死亡訊息已推播至所有在線用戶端",
       broadcastMsg
     };
+  }
+
+  /**
+   * 檢查並觸發「重生輪迴時間刷新」Webhook
+   */
+  async checkAndTriggerRespawnCycle() {
+    const now = new Date();
+    const twHours = getTaiwanHours(now);
+    const twMinutes = new Date(now.getTime() + 8 * 60 * 60 * 1000).getUTCMinutes();
+
+    if (!this.mainData.bossListData || this.mainData.bossListData.length === 0) {
+      return { triggered: false, reason: "no_data" };
+    }
+
+    // 1. 找出所有監控 Boss 的重生結束小時 (去重並排序)
+    const allTargetHours = [...new Set(
+      this.mainData.bossListData
+        .filter(item => ALL_DC_CHECK_BOSS_IDS.includes(Number(item.id) % 100000))
+        .map(item => {
+          const range = item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1);
+          return parseInt(range.split('~')[1], 10);
+        })
+        .filter(h => !isNaN(h))
+    )].sort((a, b) => a - b);
+
+    if (allTargetHours.length === 0) {
+      return { triggered: false, reason: "no_target_hours" };
+    }
+
+    // 2. 決定下一個應切換的小時
+    const nextHourToday = allTargetHours.find(h => h >= twHours);
+    const newRange = nextHourToday !== undefined ? nextHourToday : allTargetHours[0];
+
+    const lastRefresh = this.mainData.config ? this.mainData.config.lastRefreshBossTime : null;
+
+    // 若第一次啟動且無 lastRefreshBossTime，先對齊當前輪迴小時
+    if (lastRefresh === undefined || lastRefresh === null) {
+      if (!this.mainData.config) this.mainData.config = {};
+      this.mainData.config.lastRefreshBossTime = newRange;
+      await this.storage.put("mainData", this.mainData);
+      return { triggered: false, initialized: true, newRange };
+    }
+
+    // 3. 判斷輪迴小時是否發生切換
+    if (newRange !== lastRefresh) {
+      console.log(`[RESPAWN_CYCLE] 觸發重生輪迴時間切換: ${lastRefresh} -> ${newRange} (台灣時間 ${twHours}:${twMinutes})`);
+
+      if (!this.mainData.config) this.mainData.config = {};
+      this.mainData.config.lastRefreshBossTime = newRange;
+
+      // 更新所有 Boss 計算欄位
+      const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
+        ? this.mainData.config.rebootTime
+        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+      this.mainData.bossListData.forEach(b => {
+        refreshBossComputedFields(b, rebootTime, now);
+      });
+
+      // 4. 定義推播分類映射 (優先採用環境變數，若未設定則支援前端配置的長老 Webhook)
+      const defaultElderUrl = "https://discord.com/api/webhooks/1508790867232817153/mImf5VH_bxNnYsSGjM7iX_s_aUoiGgbAc_yQ5p1UdJturAgiXhBxVw5MUHnEb09dNe7S";
+      const bossReportMap = [
+        { name: "長老", checkList: ELDER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_ELDER || defaultElderUrl },
+        { name: "奧塔", checkList: TOWER_ALL_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER },
+        { name: "陣營", checkList: CAMP_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_CAMP },
+        { name: "野外", checkList: WILD_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_WILD },
+        { name: "all", checkList: [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_BOSS_IDS, ...WILD_BOSS_IDS], webhookUrl: this.env.DISCORD_WEBHOOK_ALL }
+      ];
+
+      const titleMsg = "*** 重生輪迴時間刷新 ***\n";
+
+      for (const { name, checkList, webhookUrl } of bossReportMap) {
+        if (!webhookUrl) continue;
+
+        let bosses = this.mainData.bossListData.filter(item => checkList.includes(Number(item.id) % 100000));
+        if (bosses.length === 0) continue;
+
+        bosses.sort((a, b) => {
+          const aStart = parseInt(String(a.重生間隔 || '').split('~')[0], 10) || 0;
+          const bStart = parseInt(String(b.重生間隔 || '').split('~')[0], 10) || 0;
+          return Math.abs(aStart - newRange) - Math.abs(bStart - newRange);
+        });
+
+        const firstStart = parseInt(String(bosses[0].重生間隔 || '').split('~')[0], 10);
+        if (firstStart === newRange) {
+          await this.sendRespawnCycleWebhook(webhookUrl, titleMsg, checkList, now, name);
+        }
+      }
+
+      // 廣播給所有連線中的前端網頁
+      const syncBroadcast = {
+        type: "Sync_Boss_Data",
+        bossListData: this.mainData.bossListData,
+        config: this.mainData.config,
+        gateOpenTime: this.mainData.gateOpenTime,
+        gateCloseTime: this.mainData.gateCloseTime,
+        senderId: "server"
+      };
+      this.broadcast(JSON.stringify(syncBroadcast));
+      await this.storage.put("mainData", this.mainData);
+
+      return { triggered: true, newRange };
+    }
+
+    return { triggered: false, currentRange: lastRefresh, newRange };
+  }
+
+  /**
+   * 發送重生輪迴時間刷新的 Webhook 通知
+   */
+  async sendRespawnCycleWebhook(webhookUrl, titleMsg, checkList, now = new Date(), categoryName = "") {
+    try {
+      const bosses = (this.mainData.bossListData || [])
+        .filter(item => checkList.includes(Number(item.id) % 100000));
+
+      const tableData = bosses.map(item => {
+        let latestDeath = item.death;
+        if (Array.isArray(item.deathList) && item.deathList.length > 0) {
+          let latestDate = parseTaiwanDate(item.death);
+          for (const dl of item.deathList) {
+            if (dl && dl.death) {
+              const d = parseTaiwanDate(dl.death);
+              if (d && (!latestDate || d.getTime() > latestDate.getTime())) {
+                latestDate = d;
+                latestDeath = dl.death;
+              }
+            }
+          }
+        }
+        return {
+          count: item.respawnCount !== undefined ? item.respawnCount : 0,
+          name: item.bossName,
+          spawnTime: item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1),
+          guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
+          death: latestDeath
+        };
+      });
+
+      const tableMsg = formatTableForDiscord(tableData, true);
+      const activeMsg = `\n> 活動出現次數: ${calculateActiveStats(this.mainData.bossListData, checkList)}`;
+      const fullContent = titleMsg + tableMsg + activeMsg;
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          content: fullContent,
+          username: `LOA Boss 輪迴監控 [${categoryName}]`
+        })
+      });
+
+      if (!response.ok) {
+        console.error(`❌ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 發送失敗: HTTP ${response.status}`);
+      } else {
+        console.log(`✅ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 發送成功！`);
+      }
+    } catch (err) {
+      console.error(`❌ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 異常:`, err);
+    }
   }
 }

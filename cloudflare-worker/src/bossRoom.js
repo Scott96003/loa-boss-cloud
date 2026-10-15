@@ -464,6 +464,26 @@ export class BossRoom {
   }
 
   /**
+   * 決定單一連線的在線狀態：優先採用客戶端回報的狀態，否則沿用此連線原本的狀態
+   */
+  resolvePresenceStatus(reported, userStatus, sessionStatus) {
+    for (const s of [reported, userStatus, sessionStatus]) {
+      if (s === "idle" || s === "online") return s;
+    }
+    return "online";
+  }
+
+  /**
+   * 彙總同帳號多個連線的狀態：任一連線為 online 即視為 online，全部閒置才是 idle
+   */
+  aggregatePresenceStatus(sockets) {
+    for (const s of sockets) {
+      if (this.sessions.get(s)?.user?.status !== "idle") return "online";
+    }
+    return "idle";
+  }
+
+  /**
    * 取得已去重的在線使用者清單 (依 online/idle 狀態與名稱排序)
    */
   getOnlineUsersList() {
@@ -490,7 +510,7 @@ export class BossRoom {
           nickname: u.nickname || null,
           displayName: u.displayName || u.nickname || u.global_name || u.username || "在線成員",
           avatar: u.avatar || null,
-          status: u.status || "online",
+          status: this.aggregatePresenceStatus(record.sockets),
           connectionsCount: record.sockets.size,
         });
       }
@@ -845,8 +865,6 @@ export class BossRoom {
 
       // 如果有真實 Discord 使用者資料，才列入在線成員追蹤
       if (hasRealUser) {
-        // 重新回報身分時未附帶狀態，則沿用既有的 online/idle，避免被重設為 online
-        const prevStatus = this.onlineUsers.get(effectiveId)?.user?.status;
         userInfo = {
           id: effectiveId,
           username: user.username || "成員",
@@ -854,7 +872,7 @@ export class BossRoom {
           nickname: user.nickname || null,
           displayName: user.displayName || user.nickname || user.global_name || user.username || "在線成員",
           avatar: user.avatar || null,
-          status: user.status || prevStatus || "online",
+          status: this.resolvePresenceStatus(data.status, user.status, currentSession.user?.status),
         };
         currentSession.user = userInfo;
 
@@ -956,7 +974,7 @@ export class BossRoom {
             nickname: u.nickname || null,
             displayName: u.displayName || u.nickname || u.global_name || u.username || "在線成員",
             avatar: u.avatar || null,
-            status: u.status || "online",
+            status: this.resolvePresenceStatus(data.status, u.status),
           };
           currentSession.user = userInfo;
           currentSession.userId = effectiveId;

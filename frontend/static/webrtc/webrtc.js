@@ -65,6 +65,8 @@ const WebRTCClientModule = (function() {
             this.heartbeatInterval = null;
             this.HEARTBEAT_TIMEOUT = 25000; // 25 秒發送一次 PING
             this.missPong = 0;
+            // 本分頁目前的在線狀態 (online / idle)，重連或重新回報身分時一併送出
+            this.presenceStatus = 'online';
         }
 
         // -----------------------------------------------------------------
@@ -145,7 +147,8 @@ const WebRTCClientModule = (function() {
                 const registrationMessage = {
                     type: 'client_register', 
                     senderId: this.clientId,
-                    user: currentUser || null
+                    user: currentUser || null,
+                    status: this.presenceStatus
                 };
                 this.ws.send(JSON.stringify(registrationMessage));
                 this.ui.appendMessage(`信令連線成功，ID: ${this.clientId} (${this.role.toUpperCase()}) 已發送註冊請求。`);
@@ -194,7 +197,8 @@ const WebRTCClientModule = (function() {
                     const pingMessage = JSON.stringify({
                         type: 'ping',
                         senderId: this.clientId,
-                        user: currentUser || null
+                        user: currentUser || null,
+                        status: this.presenceStatus
                     });
                     this.ws.send(pingMessage);
                     this.missPong += 1;
@@ -836,6 +840,7 @@ const WebRTCClientModule = (function() {
 
         // 發送使用者閒置/在線狀態變更
         sendPresenceUpdate(status) {
+            this.presenceStatus = status === 'idle' ? 'idle' : 'online';
             if (this.ws && this.ws.readyState === WebSocket.OPEN) {
                 this.ws.send(JSON.stringify({
                     type: 'update_presence',
@@ -852,7 +857,8 @@ const WebRTCClientModule = (function() {
                 this.ws.send(JSON.stringify({
                     type: 'user_presence',
                     senderId: this.clientId,
-                    user: user
+                    user: user,
+                    status: this.presenceStatus
                 }));
                 // 發送身分後主動向伺服器索取最新的在線用戶名單，確保自身與大家即時同步
                 this.getWsAllOnlineUsers();

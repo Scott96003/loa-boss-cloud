@@ -127,27 +127,69 @@ button:active {
     gap: 10px;
 }
 
+/* 桌面版右上角有固定控制區與在線膠囊，上方資訊區右側讓出空間 */
+@media (min-width: 601px) {
+    .flex-container {
+        padding-right: 190px;
+    }
+}
+
+/* 龍門狀態：一行長條，點擊展開詳細內容 */
 #dragonGateStatusContainer {
-    width: 300px;
-    padding: 10px 12px;
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-top: 3px solid #5e47a9;
+    border-left: 3px solid #5e47a9;
     border-radius: 10px;
-    text-align: center;
+    text-align: left;
     box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+}
+
+#dragonGateStatusContainer:hover {
+    background: var(--surface-hover);
 }
 
 #dragonGateStatusContainer h4 {
-    margin: 0 0 6px 0;
+    margin: 0;
     color: var(--accent);
-    font-size: 15px;
+    font-size: 14px;
+    white-space: nowrap;
 }
 
+/* 收起時把多行狀態壓成一行，超出以省略號結尾 */
 #dragonGateStatusDisplay {
-    white-space: pre-wrap;
-    font-size: 14px;
+    flex: 1;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.45;
     color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+#dragonGateStatusContainer::after {
+    content: "▾";
+    color: var(--text-faint);
+    transition: transform 0.15s;
+}
+
+#dragonGateStatusContainer.expanded {
+    align-items: flex-start;
+}
+
+#dragonGateStatusContainer.expanded #dragonGateStatusDisplay {
+    white-space: pre-wrap;
+}
+
+#dragonGateStatusContainer.expanded::after {
+    transform: rotate(180deg);
 }
 
 #reboot_message {
@@ -432,7 +474,12 @@ button:active {
 /* 龍門開啟中：卡片改為琥珀色強調 */
 #dragonGateStatusContainer.gate-open {
     border-color: rgba(245, 158, 11, 0.6);
-    border-top-color: #f59e0b;
+    border-left-color: #f59e0b;
+    background: rgba(245, 158, 11, 0.08);
+}
+
+#dragonGateStatusContainer.gate-open #dragonGateStatusDisplay {
+    color: #fbbf24;
 }
 
 /* ---------- 底部訊息區 ---------- */
@@ -517,58 +564,9 @@ button:active {
         padding: 8px 10px calc(var(--toolbar-h) + env(safe-area-inset-bottom) + 12px);
     }
 
-    /* ---- D. 龍門狀態縮成一行橫幅 ---- */
-    #dragonGateStatusContainer {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        padding: 8px 12px;
-        text-align: left;
-        border-top-width: 1px;
-        border-left: 3px solid #5e47a9;
-        cursor: pointer;
-    }
-
-    #dragonGateStatusContainer.gate-open {
-        border-left-color: #f59e0b;
-    }
-
-    #dragonGateStatusContainer h4 {
-        margin: 0;
-        font-size: 14px;
-        white-space: nowrap;
-    }
-
+    /* ---- D. 龍門長條標題縮短 ---- */
     #dragonGateStatusContainer .dg-title-rest {
         display: none;
-    }
-
-    #dragonGateStatusDisplay {
-        flex: 1;
-        min-width: 0;
-        font-size: 13px;
-        line-height: 1.45;
-        max-height: 1.45em;
-        overflow: hidden;
-    }
-
-    #dragonGateStatusContainer::after {
-        content: "▾";
-        color: var(--text-faint);
-        transition: transform 0.15s;
-    }
-
-    #dragonGateStatusContainer.expanded {
-        align-items: flex-start;
-    }
-
-    #dragonGateStatusContainer.expanded #dragonGateStatusDisplay {
-        max-height: none;
-    }
-
-    #dragonGateStatusContainer.expanded::after {
-        transform: rotate(180deg);
     }
 
     /* ---- 篩選按鈕列改為橫向滑動 ---- */

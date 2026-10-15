@@ -29,6 +29,108 @@ function parseTaiwanDate(dateStr) {
 // 魂塔長老分類之所有 Boss ID (共 8 隻)
 const ELDER_BOSS_IDS = [45955, 45956, 45957, 45958, 45959, 45960, 45961, 45962];
 
+// 設定計算輪迴的基礎時間 (台灣時間 2024-01-04 12:00:00)
+const BASE_TIME = '2024-01-04T12:00:00+08:00';
+
+/**
+ * 取得指定 Date 在台灣時區 (UTC+8) 的小時 (0~23)
+ */
+function getTaiwanHours(date) {
+  const d = parseTaiwanDate(date) || new Date(date);
+  const twDate = new Date(d.getTime() + 8 * 60 * 60 * 1000);
+  return twDate.getUTCHours();
+}
+
+/**
+ * 根據時間和週期計算下一次出現的時間 (基準時間為 BASE_TIME)
+ */
+function getSpawnTime(currectTime, cycleHours) {
+  const now = parseTaiwanDate(currectTime) || new Date();
+  const baseDate = new Date(BASE_TIME);
+  const timeDiffMs = now.getTime() - baseDate.getTime();
+  const timeDiffHours = timeDiffMs / (1000 * 60 * 60);
+  const nextCycle = Math.ceil(timeDiffHours / cycleHours) * cycleHours;
+  return new Date(baseDate.getTime() + nextCycle * 60 * 60 * 1000);
+}
+
+/**
+ * 格式化時間區段字串 (如 12~19)
+ */
+function formatDateTime_Easy(date, date2) {
+  const h1 = String(getTaiwanHours(date)).padStart(2, '0');
+  const h2 = String(getTaiwanHours(date2)).padStart(2, '0');
+  return `${h1}~${h2}`;
+}
+
+/**
+ * 取得指定時間與週期對應的時間區段 (如 12~19)
+ */
+function getSpawnRange(currectTime, cycleHours) {
+  const time2 = getSpawnTime(currectTime, cycleHours);
+  const time1 = new Date(time2.getTime() - cycleHours * 60 * 60 * 1000);
+  return formatDateTime_Easy(time1, time2);
+}
+
+/**
+ * 取得 Boss 每一輪應有的擊殺需求次數 (數量)
+ */
+function getBossCount(obj) {
+  let needBossCount = 1;
+  const idStr = String(obj.id);
+  if (idStr === "45545") needBossCount = 2;
+  if (idStr === "45640" || idStr === "45516") needBossCount = 3;
+  if (idStr === "46220") needBossCount = 4;
+  return needBossCount;
+}
+
+/**
+ * 依據伺服器重開機時間計算 Boss 的時間區段與存活數量 (findLostBoss)
+ */
+function findLostBoss(bossData, rebootTimeInput, now = new Date()) {
+  const bossDurationHour = parseFloat(bossData.respawnTime) || 1;
+  const segmentDuration = bossDurationHour * 60 * 60 * 1000;
+  const rebootTime = parseTaiwanDate(rebootTimeInput) || new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+
+  const startPoint = getSpawnTime(rebootTime, bossDurationHour);
+  const segments = [];
+  let currentSegmentStart = new Date(startPoint);
+
+  while (currentSegmentStart < now) {
+    const segmentEnd = new Date(currentSegmentStart.getTime() + segmentDuration);
+    const segmentTimes = (bossData.deathList || []).filter(dl => {
+      const d = parseTaiwanDate(dl.death);
+      return d && d >= currentSegmentStart && d < segmentEnd;
+    });
+    segments.push({ start: currentSegmentStart, end: segmentEnd, deathList: segmentTimes });
+    currentSegmentStart = segmentEnd;
+  }
+
+  const matchingTimes = (bossData.deathList || []).filter(dl => {
+    const d = parseTaiwanDate(dl.death);
+    return d && d > rebootTime;
+  });
+
+  segments.sort((a, b) => b.start.getTime() - a.start.getTime());
+
+  const dieCount = matchingTimes.length;
+  const bossCount = getBossCount(bossData);
+  let aliveCount = (segments.length * bossCount) - dieCount;
+  if (aliveCount > 3) aliveCount = 3;
+  if (aliveCount < 0) aliveCount = 0;
+
+  return { rebornCount: aliveCount, segments };
+}
+
+/**
+ * 動態更新單一 Boss 的計算欄位 (重生間隔、result、respawnCount)
+ */
+function refreshBossComputedFields(boss, rebootTime, now = new Date()) {
+  const cycleHours = parseFloat(boss.respawnTime) || 1;
+  boss.重生間隔 = getSpawnRange(now, cycleHours);
+  boss.result = findLostBoss(boss, rebootTime, now);
+  boss.respawnCount = boss.result.rebornCount;
+}
+
 /**
  * 計算字串顯示寬度 (全形=2, 半形=1)
  */
@@ -180,10 +282,12 @@ export class BossRoom {
     this.storage = state.storage;
 
     // 儲存活躍連線與用戶對應
-    // WebSocket -> { userId: string }
+    // WebSocket -> { userId: string, user: Object }
     this.sessions = new Map();
     // userId -> WebSocket
     this.userToWs = new Map();
+    // userId -> { user: Object, sockets: Set<WebSocket> } (支援同帳號多分頁聚合管理)
+    this.onlineUsers = new Map();
 
     // 核心狀態快取 (預設注入 62 隻 Boss 基礎資料)
     this.mainData = {
@@ -207,6 +311,60 @@ export class BossRoom {
         this.mainData = { ...this.mainData, ...savedData };
       }
     });
+  }
+
+  /**
+   * 取得已去重的在線使用者清單 (依 online/idle 狀態與名稱排序)
+   */
+  getOnlineUsersList() {
+    const list = [];
+    for (const [uid, record] of this.onlineUsers.entries()) {
+      if (record.sockets && record.sockets.size > 0) {
+        const u = record.user || {};
+        const idStr = String(u.id || uid);
+        const nameStr = String(u.displayName || u.username || "");
+
+        // 嚴格過濾：只納入已登入且具備真實身分的 Discord 成員
+        // 排除純信令 spoke ID (SPK_xxxx, HUB_xxxx, 或無明確身分的訪客)
+        if (idStr.startsWith("SPK_") || idStr.startsWith("HUB_") || nameStr.startsWith("SPK_") || nameStr.startsWith("HUB_")) {
+          continue;
+        }
+
+        list.push({
+          id: idStr,
+          username: u.username || "",
+          global_name: u.global_name || "",
+          nickname: u.nickname || null,
+          displayName: u.displayName || u.nickname || u.global_name || u.username || "在線成員",
+          avatar: u.avatar || null,
+          status: u.status || "online",
+          connectionsCount: record.sockets.size,
+        });
+      }
+    }
+
+    list.sort((a, b) => {
+      if (a.status !== b.status) {
+        return a.status === "online" ? -1 : 1;
+      }
+      return a.displayName.localeCompare(b.displayName);
+    });
+
+    return list;
+  }
+
+  /**
+   * 廣播最新在線使用者名單給所有連線
+   */
+  broadcastOnlineUsers() {
+    const users = this.getOnlineUsersList();
+    const payload = JSON.stringify({
+      type: "online_users_update",
+      count: users.length,
+      users: users,
+      timestamp: new Date().toISOString()
+    });
+    this.broadcast(payload);
   }
 
   /**
@@ -271,11 +429,12 @@ export class BossRoom {
           if (!bossDeathTime || bossDeathTime < cutoffDate) {
             boss.death = "";
             boss.emblem = "";
-            boss.respawnCount = 0;
-            boss.result = { rebornCount: 0, segments: [] };
             clearedBossCount++;
           }
         }
+
+        // 重新依據最新的截止時間/重開機時間矯正 Boss 的區段與存活數
+        refreshBossComputedFields(boss, cutoffDate, now);
       });
     }
 
@@ -295,7 +454,7 @@ export class BossRoom {
 
       // 使用 Cloudflare WebSocket Hibernation API 接受連線
       this.state.acceptWebSocket(server);
-      this.sessions.set(server, { userId: null });
+      this.sessions.set(server, { userId: null, user: null });
       this.updateUserCount();
 
       return new Response(null, { status: 101, webSocket: client });
@@ -314,10 +473,23 @@ export class BossRoom {
 
     // API: 查詢伺服器與線上狀態
     if (url.pathname === "/api/status") {
+      const onlineList = this.getOnlineUsersList();
       return Response.json({
         ...this.mainData,
-        users_online: this.getConnectedSockets().length,
+        users_online: onlineList.length,
+        online_users: onlineList,
         registered_users: Array.from(this.userToWs.keys())
+      }, { headers: corsHeaders });
+    }
+
+    // API: 取得當前在線成員名單
+    if (url.pathname === "/api/online-users" && request.method === "GET") {
+      const onlineList = this.getOnlineUsersList();
+      return Response.json({
+        success: true,
+        count: onlineList.length,
+        users: onlineList,
+        timestamp: new Date().toISOString()
       }, { headers: corsHeaders });
     }
 
@@ -484,17 +656,74 @@ export class BossRoom {
     const currentSession = this.sessions.get(ws);
 
     // 1. 客戶端註冊 (client_register)
-    if (messageType === 'client_register') {
-      if (senderId) {
-        currentSession.userId = senderId;
-        this.userToWs.set(senderId, ws);
-        console.log(`[REGISTER] 用戶 '${senderId}' 成功註冊。`);
+    // 1. 客戶端註冊與在線狀態同步 (client_register / user_presence)
+    if (messageType === 'client_register' || messageType === 'user_presence') {
+      const user = data.user || null;
+      const hasRealUser = user && user.id && !String(user.id).startsWith("SPK_") && !String(user.id).startsWith("HUB_");
+      const effectiveId = hasRealUser ? String(user.id) : (senderId || `guest_${Math.random().toString(36).slice(2, 8)}`);
 
+      if (senderId) {
+        currentSession.userId = effectiveId;
+        currentSession.clientId = senderId;
+        this.userToWs.set(senderId, ws);
+      }
+
+      let userInfo = null;
+
+      // 如果有真實 Discord 使用者資料，才列入在線成員追蹤
+      if (hasRealUser) {
+        userInfo = {
+          id: effectiveId,
+          username: user.username || "成員",
+          global_name: user.global_name || "",
+          nickname: user.nickname || null,
+          displayName: user.displayName || user.nickname || user.global_name || user.username || "在線成員",
+          avatar: user.avatar || null,
+          status: user.status || "online",
+        };
+        currentSession.user = userInfo;
+
+        // 聚合進 onlineUsers (支援同帳號開多個分頁)
+        if (!this.onlineUsers.has(effectiveId)) {
+          this.onlineUsers.set(effectiveId, {
+            user: userInfo,
+            sockets: new Set()
+          });
+        }
+        const record = this.onlineUsers.get(effectiveId);
+        record.sockets.add(ws);
+        record.user = { ...record.user, ...userInfo };
+
+        this.updateUserCount();
+        console.log(`[REGISTER] Discord 成員 '${effectiveId}' (${userInfo.displayName}) 成功加入在線清單。`);
+
+        // 廣播最新在線使用者名單給所有連線
+        this.broadcastOnlineUsers();
+
+        // 立即向發起註冊的連線本身回傳最新完整名單，避免客戶端因時序或覆蓋問題看不到他人
+        try {
+          const currentMembers = this.getOnlineUsersList();
+          ws.send(JSON.stringify({
+            type: "online_users_update",
+            count: currentMembers.length,
+            users: currentMembers,
+            timestamp: new Date().toISOString()
+          }));
+        } catch {}
+      } else {
+        // 未登入的連線只作為信令通訊客戶端，不列入在線名單
+        currentSession.user = null;
+        console.log(`[REGISTER] 訪客/信令端點 '${senderId}' 已連線 (未登入，不列入在線成員清單)。`);
+      }
+
+      // 原本的 WebRTC / Sync 邏輯保留：
+      if (messageType === 'client_register') {
         // 廣播有新用戶加入
         this.broadcast(JSON.stringify({
           type: "user_joined",
           senderId: "server",
-          newUserId: senderId
+          newUserId: senderId,
+          user: userInfo
         }), ws);
 
         // 如果伺服器已經有儲存的最新 Boss 資料，主動推送給該新註冊用戶
@@ -526,12 +755,28 @@ export class BossRoom {
       return;
     }
 
-    // 3. 請求在線使用者名單 (request_online_users)
+    // 3. 更新在線狀態 (online / idle)
+    if (messageType === 'update_presence' || messageType === 'update_status') {
+      const status = data.status === 'idle' ? 'idle' : 'online';
+      if (currentSession && currentSession.userId && this.onlineUsers.has(currentSession.userId)) {
+        const record = this.onlineUsers.get(currentSession.userId);
+        record.user.status = status;
+        if (currentSession.user) {
+          currentSession.user.status = status;
+        }
+        this.broadcastOnlineUsers();
+      }
+      return;
+    }
+
+    // 4. 請求在線使用者名單 (request_online_users)
     if (messageType === 'request_online_users') {
       const users = Array.from(this.userToWs.keys());
+      const members = this.getOnlineUsersList();
       ws.send(JSON.stringify({
         type: "online_users_list",
         users: users,
+        members: members,
         senderId: "server"
       }));
       return;
@@ -588,12 +833,22 @@ export class BossRoom {
    */
   async webSocketClose(ws, code, reason, wasClean) {
     const session = this.sessions.get(ws);
-    if (session && session.userId) {
-      this.userToWs.delete(session.userId);
-      console.log(`[DISCONNECT] 用戶 '${session.userId}' 離線。`);
+    if (session) {
+      if (session.clientId) {
+        this.userToWs.delete(session.clientId);
+      }
+      if (session.userId && this.onlineUsers.has(session.userId)) {
+        const record = this.onlineUsers.get(session.userId);
+        record.sockets.delete(ws);
+        if (record.sockets.size === 0) {
+          this.onlineUsers.delete(session.userId);
+          console.log(`[DISCONNECT] 用戶 '${session.userId}' 離線。`);
+        }
+      }
     }
     this.sessions.delete(ws);
     this.updateUserCount();
+    this.broadcastOnlineUsers();
   }
 
   /**
@@ -630,7 +885,8 @@ export class BossRoom {
    * 更新線上人數計數
    */
   updateUserCount() {
-    this.mainData.users_online = this.getConnectedSockets().length;
+    const uniqueCount = this.onlineUsers ? this.onlineUsers.size : 0;
+    this.mainData.users_online = uniqueCount > 0 ? uniqueCount : this.getConnectedSockets().length;
     this.mainData.last_updated = new Date().toISOString();
   }
 
@@ -653,16 +909,45 @@ export class BossRoom {
       // 1. 擊殺標題
       const titleMsg = `***[${isActive ? '活動 ' : ''}${bossName}] 被 ${emblem} 擊殺 ${deathTime}***\n`;
 
-      // 2. 匯總長老分類下的 8 隻 Boss 現狀
-      const elderData = (this.mainData.bossListData || [])
-        .filter(item => ELDER_BOSS_IDS.includes(Number(item.id) % 100000))
-        .map(item => ({
-          count: item.respawnCount !== undefined ? item.respawnCount : (Array.isArray(item.deathList) ? item.deathList.length : 0),
-          name: item.bossName,
-          spawnTime: item.重生間隔 || item.respawnTime,
-          guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
-          death: item.death
-        }));
+      const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
+        ? this.mainData.config.rebootTime
+        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
+
+      const now = new Date();
+
+      // 2. 匯總長老分類下的 8 隻 Boss 現狀，並即時動態重新計算各長老的最新區段與存活數量
+      const elderBosses = (this.mainData.bossListData || [])
+        .filter(item => ELDER_BOSS_IDS.includes(Number(item.id) % 100000));
+
+      elderBosses.forEach(boss => {
+        refreshBossComputedFields(boss, rebootTime, now);
+      });
+
+      // 排序：被擊殺的長老置頂於清單第一筆，其餘長老按 ELDER_BOSS_IDS 順序排列
+      const killedBossId = Number(deathInfo.id) % 100000;
+      const sortedElders = [];
+
+      const killedElder = elderBosses.find(b => Number(b.id) % 100000 === killedBossId);
+      if (killedElder) {
+        sortedElders.push(killedElder);
+      }
+
+      ELDER_BOSS_IDS.forEach(id => {
+        if (id !== killedBossId) {
+          const elder = elderBosses.find(b => Number(b.id) % 100000 === id);
+          if (elder) {
+            sortedElders.push(elder);
+          }
+        }
+      });
+
+      const elderData = sortedElders.map(item => ({
+        count: item.respawnCount !== undefined ? item.respawnCount : 0,
+        name: item.bossName,
+        spawnTime: item.重生間隔 || getSpawnRange(now, 7),
+        guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
+        death: item.death
+      }));
 
       // 3. 格式化等寬表格與活動統計字串
       const tableMsg = formatTableForDiscord(elderData, true);
@@ -743,6 +1028,7 @@ export class BossRoom {
           matchedBoss.deathList.push(deathEntry);
         }
         matchedBoss.deathList.sort((a, b) => new Date(a.death) - new Date(b.death));
+        refreshBossComputedFields(matchedBoss, this.mainData.config?.rebootTime, new Date());
       }
 
       // 2. 自動維護最新 10,000 筆擊殺紀錄訊息 (供前端顯示)

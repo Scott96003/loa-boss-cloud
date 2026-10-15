@@ -1,3 +1,18 @@
 # 本地開發與測試環境專用變數 (npx wrangler dev 會自動讀取)
-# 若要在本地測試魂塔長老 Webhook 推播，請複製為 .dev.vars 並填入您的 Webhook 網址
+# 若要在本地測試，請複製為 .dev.vars 並填入實際數值
+
+# 1. 魂塔長老 Webhook 推播 (選填)
 DISCORD_WEBHOOK_ELDER="https://discord.com/api/webhooks/your_webhook_id/your_webhook_token"
+
+# 2. Discord 登入驗證設定 (必填)
+# 前往 Discord Developer Portal 取得
+DISCORD_CLIENT_ID="123456789012345678"
+DISCORD_CLIENT_SECRET="your_discord_client_secret"
+DISCORD_BOT_TOKEN="your_discord_bot_token"
+
+# 3. 認證憑證簽署金鑰 (可填寫任意隨機字串)
+AUTH_JWT_SECRET="loa_boss_super_secret_jwt_key_2026"
+
+# 4. 目標伺服器與頻道 (預設已設定為您指定的伺服器與頻道)
+DISCORD_TARGET_GUILD_ID="1198482702932914277"
+DISCORD_TARGET_CHANNEL_ID="1426495371332292608"

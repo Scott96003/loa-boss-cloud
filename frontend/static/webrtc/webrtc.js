@@ -1,7 +1,9 @@
 // const WebRTC_WS_URL = 'wss://loa-boss-ws-server.onrender.com/ws';
 // 必須使用 Punycode 格式
 // const WebRTC_WS_URL = "wss://loabosstime.xn--ihqt9a492c9lev96b.online/ws";
-const WebRTC_WS_URL = "wss://loa-boss-worker.f96003.workers.dev/ws";
+const WebRTC_WS_URL = (typeof WEBRTC_WS_URL_OVERRIDE !== 'undefined' && WEBRTC_WS_URL_OVERRIDE)
+    ? WEBRTC_WS_URL_OVERRIDE
+    : "wss://loa-boss-worker.f96003.workers.dev/ws";
   
 let MY_ROLE = null;
 let MY_CLIENT_ID = null;
@@ -127,9 +129,23 @@ const WebRTCClientModule = (function() {
                 this.reconnectAttempts = 0;
                 this.ui.updateWsStatus('connected');
                 
+                let currentUser = this.pendingUser || null;
+                if (!currentUser && typeof DiscordAuth !== 'undefined' && DiscordAuth.getUser) {
+                    currentUser = DiscordAuth.getUser();
+                }
+                if (!currentUser && typeof window.currentDiscordUser !== 'undefined') {
+                    currentUser = window.currentDiscordUser;
+                }
+                if (!currentUser) {
+                    try {
+                        currentUser = JSON.parse(localStorage.getItem("loa_boss_auth_user") || "null");
+                    } catch {}
+                }
+
                 const registrationMessage = {
                     type: 'client_register', 
-                    senderId: this.clientId
+                    senderId: this.clientId,
+                    user: currentUser || null
                 };
                 this.ws.send(JSON.stringify(registrationMessage));
                 this.ui.appendMessage(`信令連線成功，ID: ${this.clientId} (${this.role.toUpperCase()}) 已發送註冊請求。`);
@@ -139,9 +155,8 @@ const WebRTCClientModule = (function() {
                     // 啟動心跳
                     this._startHeartbeat();
                 }
-                if (this.role == 'spoke') {
-                    this.getWsAllOnlineUsers();
-                }                
+                // 向伺服器索取目前完整的在線成員列表
+                this.getWsAllOnlineUsers();                
             };
 
             this.ws.onmessage = (event) => this._handleWebSocketMessage(event);
@@ -230,6 +245,18 @@ const WebRTCClientModule = (function() {
                     const newUserId = signal.newUserId;
                     this.ui.appendMessage(`[HUB] 偵測到新用戶 [${newUserId}] 上線`);
                     if (newUserId !== this.clientId) {
+                        // 當有新用戶上線時，在線端自動向伺服器覆奏自己的身分，確保伺服器掌握所有人並將名單即時同步給該新用戶
+                        const myUser = (typeof DiscordAuth !== 'undefined' && DiscordAuth.getUser)
+                            ? DiscordAuth.getUser()
+                            : (window.currentDiscordUser || (function() {
+                                try { return JSON.parse(localStorage.getItem("loa_boss_auth_user") || "null"); } catch { return null; }
+                            })());
+                        if (myUser) {
+                            setTimeout(() => {
+                                this.registerPresence(myUser);
+                            }, Math.floor(Math.random() * 200) + 50);
+                        }
+
                         if (this.role === 'hub') {
                             if (newUserId.includes("SPK_")) {
                                 this.ui.appendMessage(`[HUB] 偵測到新用戶 [${newUserId}] 上線，自動發起連線...`);
@@ -238,8 +265,28 @@ const WebRTCClientModule = (function() {
                         }
                     }
                     break;
+                case 'request_peer_presence':
+                    if (signal.senderId !== this.clientId) {
+                        const myUserForPing = (typeof DiscordAuth !== 'undefined' && DiscordAuth.getUser)
+                            ? DiscordAuth.getUser()
+                            : (window.currentDiscordUser || (function() {
+                                try { return JSON.parse(localStorage.getItem("loa_boss_auth_user") || "null"); } catch { return null; }
+                            })());
+                        if (myUserForPing) {
+                            this.registerPresence(myUserForPing);
+                        }
+                    }
+                    break;
+                case 'online_users_update':
+                    if (window.OnlineUsersManager && typeof window.OnlineUsersManager.updateUsers === 'function') {
+                        window.OnlineUsersManager.updateUsers(signal.users, signal.count);
+                    }
+                    break;
                 case 'online_users_list':
                     const userIds = signal.users || [];
+                    if (signal.members && window.OnlineUsersManager && typeof window.OnlineUsersManager.updateUsers === 'function') {
+                        window.OnlineUsersManager.updateUsers(signal.members, signal.members.length);
+                    }
                     this.ui.appendMessage(`[${this.role}] 收到 ${userIds.length} 個在線用戶 ID，開始建立連線...`);
                     if (this.role == 'hub') {
                                         
@@ -770,6 +817,13 @@ const WebRTCClientModule = (function() {
                 senderId: this.clientId
             };
             this.ws.send(JSON.stringify(request));
+
+            // 同步廣播請求所有在線用戶回覆身分
+            this.ws.send(JSON.stringify({
+                type: 'request_peer_presence',
+                senderId: this.clientId
+            }));
+
             this.ui.appendMessage("[" + this.role + "] 已向伺服器請求在線用戶列表...");
         }
 
@@ -791,6 +845,31 @@ const WebRTCClientModule = (function() {
             };
             this.ws.send(JSON.stringify(request));
             this.ui.appendMessage("[HUB] 已向伺服器請求在線用戶列表...");
+        }
+
+        // 發送使用者閒置/在線狀態變更
+        sendPresenceUpdate(status) {
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({
+                    type: 'update_presence',
+                    senderId: this.clientId,
+                    status: status
+                }));
+            }
+        }
+
+        // 登入後補送身分資訊
+        registerPresence(user) {
+            this.pendingUser = user;
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send(JSON.stringify({
+                    type: 'user_presence',
+                    senderId: this.clientId,
+                    user: user
+                }));
+                // 發送身分後主動向伺服器索取最新的在線用戶名單，確保自身與大家即時同步
+                this.getWsAllOnlineUsers();
+            }
         }
     }
     
@@ -824,6 +903,7 @@ function startClient(role) {
 
     // 實例化模組
     webrtcClient = new WebRTCClientModule(MY_CLIENT_ID, WebRTC_WS_URL, configuration, MY_ROLE, UIManager);
+    window.webrtcClient = webrtcClient;
     webrtcClient.startConnection();
 }
 

@@ -97,3 +97,30 @@ cloudflare-worker/
 const WebRTC_WS_URL = "wss://loa-boss-worker.<你的帳號子網域>.workers.dev/ws";
 ```
 如此一來，前端與後端就完全脫離本地電腦，隨時隨地連線上線！
+
+---
+
+## 🔐 Discord 身分與頻道權限驗證設定
+
+本 Worker 已整合 Discord 登入與頻道檢視權限驗證（目標頻道：`1426495371332292608`，伺服器：`1198482702932914277`）。
+
+### 1. 本地開發設定 (`.dev.vars`)
+在 `cloudflare-worker` 目錄下建立 `.dev.vars`：
+```ini
+DISCORD_CLIENT_ID="你的 Application Client ID"
+DISCORD_CLIENT_SECRET="你的 Client Secret"
+DISCORD_BOT_TOKEN="你的 Bot Token"
+AUTH_JWT_SECRET="隨機字串密鑰"
+DISCORD_TARGET_GUILD_ID="1198482702932914277"
+DISCORD_TARGET_CHANNEL_ID="1426495371332292608"
+```
+
+### 2. 雲端部署加密變數 (Wrangler Secret)
+部署至 Cloudflare 後，請透過以下指令將金鑰設定為安全變數：
+```bash
+npx wrangler secret put DISCORD_CLIENT_ID
+npx wrangler secret put DISCORD_CLIENT_SECRET
+npx wrangler secret put DISCORD_BOT_TOKEN
+npx wrangler secret put AUTH_JWT_SECRET
+```
+

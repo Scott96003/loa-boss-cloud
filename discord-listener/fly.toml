@@ -1,0 +1,12 @@
+# fly.toml app configuration file for discord-listener
+# 此設定檔專為「純背景常駐監聽器 (Daemon)」設計，關閉了 HTTP 服務檢查，避免健康檢查超時。
+
+app = "loa-discord-listener"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

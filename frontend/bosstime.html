@@ -231,8 +231,8 @@
         }
     </style>
     <script type="text/javascript" src="./static/config.js"></script>
-    <script type="text/javascript" src="./static/auth.js?v=20261015_v3"></script>
-    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_v3"></script>
+    <script type="text/javascript" src="./static/auth.js?v=20261015_v4"></script>
+    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_v4"></script>
     <script type="text/javascript" src="./static/init.js"></script>
     <script type="text/javascript" src="./static/save.js"></script>
     <script type="text/javascript" src="./static/db.js"></script>
@@ -244,109 +244,112 @@
     <script type="text/javascript" src="./static/sendMessageToDiscord.js"></script>
     <script type="text/javascript" src="./static/onLoading.js"></script>
     <script type="text/javascript" src="./static/dragonGate.js"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_v3"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc_server.js?v=20261015_v3"></script>
+    <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_v4"></script>
+    <script type="text/javascript" src="./static/webrtc/webrtc_server.js?v=20261015_v4"></script>
 
     
 </head>
 <body>
-    <div class="flex-container">
-        <div id="setting_div" class="hidden">
-            <input type="number" id="bossid" placeholder="bossID">
-            <input type="text" id="bossName" placeholder="頭目名稱">
-            <input type="number" id="respawnTime" placeholder="重生時間(小時)">
-            <br>
-            <button id="btn_addToBossList">新增</button>
-            <button id="btn_resetData">重置預設</button>
-            <button id="btn_saveToDB">儲存資料</button>
-            <br>
-            <button id="btn_refresh">重整</button>
-            <button id="btn_refreshDeathTime">重新獲取死亡時間</button>
-            <button id="btn_reboot">維修重置時間</button>            
-            <div>            
-                <span style="color: var(--boss顏色-25)">重生已過1/4  </span>
-                <span style="color: var(--boss顏色-50)">重生已過1/2  </span>
-                <span style="color: var(--boss顏色-75)">  重生已過3/4  </span>
-                <span style="color: var(--boss顏色-90)">  重生已過9/10  </span>
+    <!-- 主系統業務容器：未完成 Discord 驗證前嚴格隱藏，杜絕手機版透光或邊緣穿透 -->
+    <div id="mainAppContent" class="main-app-content" style="display: none;">
+        <div class="flex-container">
+            <div id="setting_div" class="hidden">
+                <input type="number" id="bossid" placeholder="bossID">
+                <input type="text" id="bossName" placeholder="頭目名稱">
+                <input type="number" id="respawnTime" placeholder="重生時間(小時)">
+                <br>
+                <button id="btn_addToBossList">新增</button>
+                <button id="btn_resetData">重置預設</button>
+                <button id="btn_saveToDB">儲存資料</button>
+                <br>
+                <button id="btn_refresh">重整</button>
+                <button id="btn_refreshDeathTime">重新獲取死亡時間</button>
+                <button id="btn_reboot">維修重置時間</button>            
+                <div>            
+                    <span style="color: var(--boss顏色-25)">重生已過1/4  </span>
+                    <span style="color: var(--boss顏色-50)">重生已過1/2  </span>
+                    <span style="color: var(--boss顏色-75)">  重生已過3/4  </span>
+                    <span style="color: var(--boss顏色-90)">  重生已過9/10  </span>
+                </div>
+            </div>
+
+            <div id="dragonGateStatusContainer" style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
+                <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
+                <div id="dragonGateStatusDisplay"></div>
+            </div>
+            <div id="webrtc_div">
+
             </div>
         </div>
+        <div id="reboot_message"></div>
+        <div id="filterButtons">
+            <button data-boss-name="">顯示全部</button>
+            <button data-boss-name="1,2,91202,91605,91516">三大龍</button>
+            <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962">魂塔長老</button>
+            <button data-boss-name="81082,45685,45674,45625,45753">陣營Boss</button>
+            <button data-boss-name="45513,45547,45606,45650,45652,45653,45654,45618,45672,45673,46220,46271">傲慢之塔</button>
 
-        <div id="dragonGateStatusContainer" style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
-            <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
-            <div id="dragonGateStatusDisplay"></div>
+            <button data-boss-name="45614,45601,45617,,45600,99513,45545,45488,45678,45680">野外重要Boss</button>
+            <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962,81082,45685,45674,45625,45753,45672,45673,45618,45653,45614,45801,46142,46141,99085,99086,99065,45863,45649">重點必須拿下</button>
         </div>
-        <div id="webrtc_div">
-
+        <div class="table-scroll-wrapper"> 
+            <table id="bossList">
+                <tbody>
+                    </tbody>
+            </table>
         </div>
-    </div>
-    <div id="reboot_message"></div>
-    <div id="filterButtons">
-        <button data-boss-name="">顯示全部</button>
-        <button data-boss-name="1,2,91202,91605,91516">三大龍</button>
-        <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962">魂塔長老</button>
-        <button data-boss-name="81082,45685,45674,45625,45753">陣營Boss</button>
-        <button data-boss-name="45513,45547,45606,45650,45652,45653,45654,45618,45672,45673,46220,46271">傲慢之塔</button>
-
-        <button data-boss-name="45614,45601,45617,,45600,99513,45545,45488,45678,45680">野外重要Boss</button>
-        <button data-boss-name="45955,45956,45957,45958,45959,45960,45961,45962,81082,45685,45674,45625,45753,45672,45673,45618,45653,45614,45801,46142,46141,99085,99086,99065,45863,45649">重點必須拿下</button>
-    </div>
-    <div class="table-scroll-wrapper"> 
-        <table id="bossList">
-            <tbody>
-                </tbody>
-        </table>
-    </div>
-    <div class="message-container" id="messageContainer" style="display:block;"></div>
-    <div id="setting_container">
-        <button id="toggleMessageContainer" style="width: 80px;">顯示訊息</button><br>
-        <button id="toggleSettingContainer" style="width: 80px;">設定</button><br>
-        <div>
-            <span>音量:</span><span id="percentageDisplay">50%</span><br>
-            <input type="range" id="percentageSlider" min="0" max="100" step="1" value="50" style="width: 80px;">            
+        <div class="message-container" id="messageContainer" style="display:block;"></div>
+        <div id="setting_container">
+            <button id="toggleMessageContainer" style="width: 80px;">顯示訊息</button><br>
+            <button id="toggleSettingContainer" style="width: 80px;">設定</button><br>
+            <div>
+                <span>音量:</span><span id="percentageDisplay">50%</span><br>
+                <input type="range" id="percentageSlider" min="0" max="100" step="1" value="50" style="width: 80px;">            
+            </div>
+            <span id="versionSpan">ver251027</span>
         </div>
-        <span id="versionSpan">ver251027</span>
-    </div>
 
-    <div class="floating-message" id="floatingMessage">
-      This is a floating message!
-    </div>
+        <div class="floating-message" id="floatingMessage">
+          This is a floating message!
+        </div>
 
-    <div id="datetimePicker" class="datetime-container" style="display: none;">
-      <label for="datetime">填入維修日期和時間:</label><br>
-      <input type="datetime-local" id="datetime" name="datetime"><br><br>
-      <button id="confirmBtn">確認</button>
-      <button id="cancelBtn">取消</button>
-    </div>
-    <div id="datetimePickerForDeathTime" class="datetime-container" style="display: none;">
-      <label for="datetime">填入想要獲取時間點之後的死亡時間:</label><br>
-      <input type="datetime-local" id="datetimeForDeathTime" name="datetime"><br><br>
-      <button id="confirmBtnForDeathTime">確認</button>
-      <button id="cancelBtnForDeathTime">取消</button>
-    </div>
-    <div id="tts-overlay" style="
-        display: none; 
-        position: fixed; 
-        top: 0; left: 0; 
-        width: 100%; height: 100%; 
-        background: rgba(0, 0, 0, 0.9); 
-        color: white; 
-        z-index: 9999; 
-        text-align: center; 
-        padding-top: 20vh;
-    ">
-        <h2>偵測到行動裝置，請點擊啟動語音</h2>
-        <p>行動裝置需先點擊才能啟用自動語音播報。</p>
-        <button id="tts-unlock-button" style="
-            padding: 15px 30px; 
-            font-size: 1.2em; 
-            cursor: pointer; 
-            background-color: #4CAF50; 
+        <div id="datetimePicker" class="datetime-container" style="display: none;">
+          <label for="datetime">填入維修日期和時間:</label><br>
+          <input type="datetime-local" id="datetime" name="datetime"><br><br>
+          <button id="confirmBtn">確認</button>
+          <button id="cancelBtn">取消</button>
+        </div>
+        <div id="datetimePickerForDeathTime" class="datetime-container" style="display: none;">
+          <label for="datetime">填入想要獲取時間點之後的死亡時間:</label><br>
+          <input type="datetime-local" id="datetimeForDeathTime" name="datetime"><br><br>
+          <button id="confirmBtnForDeathTime">確認</button>
+          <button id="cancelBtnForDeathTime">取消</button>
+        </div>
+        <div id="tts-overlay" style="
+            display: none; 
+            position: fixed; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.9); 
             color: white; 
-            border: none; 
-            border-radius: 5px;
+            z-index: 9999; 
+            text-align: center; 
+            padding-top: 20vh;
         ">
-            啟動播報
-        </button>
+            <h2>偵測到行動裝置，請點擊啟動語音</h2>
+            <p>行動裝置需先點擊才能啟用自動語音播報。</p>
+            <button id="tts-unlock-button" style="
+                padding: 15px 30px; 
+                font-size: 1.2em; 
+                cursor: pointer; 
+                background-color: #4CAF50; 
+                color: white; 
+                border: none; 
+                border-radius: 5px;
+            ">
+                啟動播報
+            </button>
+        </div>
     </div>
 </body>
 

@@ -1,19 +1,45 @@
-/* Discord 驗證遮罩與身分列樣式 */
+/* 未完成驗證前，完全隱藏主頁面所有內容、表格、控制面板與在線按鈕 */
+#mainAppContent,
+.main-app-content,
+#discordOnlineHeaderBar,
+.discord-online-pill {
+    display: none !important;
+}
+
+body.authenticated #mainAppContent,
+body.authenticated .main-app-content {
+    display: block !important;
+}
+
+body.authenticated #discordOnlineHeaderBar {
+    display: flex !important;
+}
+
+body.authenticated .discord-online-pill {
+    display: inline-flex !important;
+}
+
+/* 未登入時禁止 body 滾動以防手機版穿透，並以深色實底遮蔽 */
+body:not(.authenticated) {
+    overflow: hidden !important;
+    background-color: #0f1117 !important;
+}
+
+/* Discord 驗證遮罩：100% 純色實底，不使用透明度或模糊，防止背景透出 */
 #discordAuthOverlay {
     position: fixed;
     top: 0;
     left: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(10, 10, 15, 0.94);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
+    background: #0f1117 !important;
     z-index: 999999;
     display: flex;
     align-items: center;
     justify-content: center;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     color: #f2f2f2;
+    overflow-y: auto;
 }
 
 .auth-modal-card {

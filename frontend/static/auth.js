@@ -337,17 +337,24 @@
     }
 
     // 顯示遮罩
+    // 顯示遮罩
     function showOverlay() {
+        document.body.classList.remove("authenticated");
         const overlay = document.getElementById("discordAuthOverlay");
         if (overlay) overlay.style.display = "flex";
         const widget = document.getElementById("discordUserStatusWidget");
         if (widget) widget.style.display = "none";
+        const main = document.getElementById("mainAppContent");
+        if (main) main.style.display = "none";
     }
 
-    // 隱藏遮罩並顯示右上角狀態
+    // 隱藏遮罩並顯示主畫面與右上角狀態
     function hideOverlay(user) {
+        document.body.classList.add("authenticated");
         const overlay = document.getElementById("discordAuthOverlay");
         if (overlay) overlay.style.display = "none";
+        const main = document.getElementById("mainAppContent");
+        if (main) main.style.display = "block";
 
         const widget = document.getElementById("discordUserStatusWidget");
         if (widget && user) {

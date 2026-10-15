@@ -1294,14 +1294,17 @@ export class BossRoom {
       const normalizeName = (name) => String(name || '').replace(/[・．\s]/g, '').replace(/^活動/, '');
       const dNameNorm = normalizeName(deathInfo.bossName);
 
+      const dId = Number(deathInfo.id);
+
+      // 有 id 時只用 id 比對 (含活動版 +100000)，避免同名不同 id 的 Boss 被誤判為同一隻
+      // (例如傲慢之塔 46271 與 30 樓 45606 皆名為「恐怖的吸血鬼」)；沒有 id 時才退回名稱比對
       matchedBoss = this.mainData.bossListData.find(b => {
         const bId = Number(b.id);
-        const dId = Number(deathInfo.id);
+        if (dId) {
+          return bId === dId || bId === dId % 100000;
+        }
         const bNameNorm = normalizeName(b.bossName);
-        return String(b.id) === String(deathInfo.id) ||
-               (bId && dId && bId + 100000 === dId) ||
-               (bId && dId && bId === dId % 100000) ||
-               b.bossName === deathInfo.bossName ||
+        return b.bossName === deathInfo.bossName ||
                (`活動${b.bossName}` === deathInfo.bossName) ||
                (bNameNorm && dNameNorm && bNameNorm === dNameNorm);
       });

@@ -3,6 +3,8 @@
 
 # 1. 魂塔長老 Webhook 推播 (選填)
 DISCORD_WEBHOOK_ELDER="https://discord.com/api/webhooks/your_webhook_id/your_webhook_token"
+# 龍門開啟／關閉 Webhook 推播 (選填)
+DISCORD_WEBHOOK_DRAGON="https://discord.com/api/webhooks/your_webhook_id/your_webhook_token"
 
 # 2. Discord 登入驗證設定 (必填)
 # 前往 Discord Developer Portal 取得

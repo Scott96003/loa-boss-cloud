@@ -115,8 +115,7 @@ class BossEventTracker {
         console.log(`開啟時間: ${this.gateOpenTime.toLocaleString()}，關閉時間: ${this.gateCloseTime.toLocaleString()}`);
         // 邏輯執行結束後，呼叫儲存
         this.saveToCookie();
-        // 發送到dc
-        sendTextWebhook(WEBHook_URL.龍門, this.displayStatus());
+        // Discord 龍門通知由 Cloudflare Worker 發送
     }
     /**
      * 根據「3 小時過濾分組」邏輯，分析並提取有效的 gateOpenTime，並包含對應的 emblem。
@@ -234,9 +233,6 @@ class BossEventTracker {
                 this.gateOpenTime = null;
                 // 邏輯執行結束後，呼叫儲存
                 this.saveToCookie();
-                // 發送到dc
-                sendTextWebhook(WEBHook_URL.龍門, statusMessage);
-                
             }
         }
         

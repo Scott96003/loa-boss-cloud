@@ -34,6 +34,10 @@ const TOWER_ALL_BOSS_IDS = [45513, 45547, 45606, 45650, 45652, 45653, 45654, 456
 const WILD_BOSS_IDS = [45614, 45801, 46142, 46141, 99085, 99086, 99065, 45863];
 const ALL_DC_CHECK_BOSS_IDS = [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_ALL_BOSS_IDS, ...WILD_BOSS_IDS];
 
+// 龍門：擊殺任一隻龍後開啟 3 小時 (與前端 dragonGate.js 相同)
+const DRAGON_GATE_BOSS_IDS = [91516, 91202, 91605];
+const DRAGON_GATE_DURATION_MS = 3 * 60 * 60 * 1000;
+
 // 設定計算輪迴的基礎時間 (台灣時間 2024-01-04 12:00:00)
 const BASE_TIME = '2024-01-04T12:00:00+08:00';
 
@@ -184,6 +188,17 @@ function syncBossLatestDeathAndEmblem(bossData) {
 function getNextHourBoundary(nowMs = Date.now()) {
   const HOUR_MS = 60 * 60 * 1000;
   return Math.floor(nowMs / HOUR_MS) * HOUR_MS + HOUR_MS + 5 * 1000;
+}
+
+/**
+ * 以台灣時區、24 小時制格式化時間 (與前端龍門訊息格式相同)
+ */
+function formatTaiwanDateTime(date) {
+  return new Date(date).toLocaleString('zh-TW', {
+    timeZone: 'Asia/Taipei',
+    year: 'numeric', month: 'numeric', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+  });
 }
 
 /**
@@ -416,12 +431,30 @@ export class BossRoom {
       await this.checkAndTriggerRespawnCycle();
     } catch (err) {
       console.error("[ALARM] 執行輪迴排程檢查失敗:", err);
-    } finally {
-      try {
-        await this.storage.setAlarm(getNextHourBoundary());
-      } catch (e) {
-        console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
+    }
+    try {
+      await this.checkDragonGateClose();
+    } catch (err) {
+      console.error("[ALARM] 執行龍門關閉檢查失敗:", err);
+    }
+    await this.scheduleNextAlarm();
+  }
+
+  /**
+   * 排程下一次 Alarm：每個整點檢查輪迴，龍門開啟中則提前於關閉時間喚醒
+   */
+  async scheduleNextAlarm() {
+    let next = getNextHourBoundary();
+    if (this.mainData.gateOpenTime && this.mainData.gateCloseTime) {
+      const closeMs = new Date(this.mainData.gateCloseTime).getTime();
+      if (!isNaN(closeMs)) {
+        next = Math.min(next, Math.max(closeMs, Date.now() + 1000));
       }
+    }
+    try {
+      await this.storage.setAlarm(next);
+    } catch (e) {
+      console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
     }
   }
 
@@ -812,9 +845,9 @@ export class BossRoom {
 
         return Response.json({
           success: true,
-          message: `伺服器重啟完成，已刪除早於 ${rebootDate.toISOString()} 的 ${clearedCount} 隻 Boss 歷史擊殺`,
+          message: `伺服器重啟完成，已刪除早於 ${rebootDate.toISOString()} 的 ${clearedBossCount} 隻 Boss 歷史擊殺`,
           rebootTime: rebootDate.toISOString(),
-          clearedBossCount: clearedCount
+          clearedBossCount
         }, { headers: corsHeaders });
       } catch (err) {
         return Response.json({ success: false, error: err.message }, { status: 400, headers: corsHeaders });
@@ -1342,11 +1375,90 @@ export class BossRoom {
       this.sendElderDiscordWebhook(deathInfo, matchedBoss);
     }
 
+    // 5. 擊殺龍時開啟新的龍門週期並推送龍門 Webhook
+    if (DRAGON_GATE_BOSS_IDS.includes(bossIdNum) && killDate) {
+      await this.processDragonGateKill(killDate);
+    }
+
     return {
       success: true,
       message: "Boss 死亡訊息已推播至所有在線用戶端",
       broadcastMsg
     };
+  }
+
+  /**
+   * 擊殺龍後開啟新的龍門週期 (龍門開啟期間的擊殺不重複開啟)
+   */
+  async processDragonGateKill(killDate) {
+    const prevClose = this.mainData.gateCloseTime ? new Date(this.mainData.gateCloseTime) : null;
+    if (prevClose && !isNaN(prevClose.getTime()) && killDate < prevClose) {
+      console.log(`[龍門] 擊殺時間 ${killDate.toISOString()} 仍在上一個龍門週期內，略過。`);
+      return;
+    }
+
+    const openTime = killDate;
+    const closeTime = new Date(openTime.getTime() + DRAGON_GATE_DURATION_MS);
+    const now = new Date();
+    // 過晚收到的擊殺：龍門其實已關閉，只記錄週期、不推送通知
+    const stillOpen = closeTime > now;
+
+    this.mainData.gateOpenTime = stillOpen ? openTime.toISOString() : null;
+    this.mainData.gateCloseTime = closeTime.toISOString();
+    await this.storage.put("mainData", this.mainData);
+
+    if (!stillOpen) {
+      console.log(`[龍門] 擊殺時間過舊，龍門已於 ${closeTime.toISOString()} 關閉，略過開啟通知。`);
+      return;
+    }
+
+    const minutesToClose = Math.ceil((closeTime.getTime() - now.getTime()) / 60000);
+    const content = [
+      "🚨 龍門開啟中 🚨",
+      `開啟時間: ${formatTaiwanDateTime(openTime)}`,
+      `關閉時間: ${formatTaiwanDateTime(closeTime)}`,
+      `剩餘時間: 約 ${minutesToClose} 分鐘  <t:${Math.floor(closeTime.getTime() / 1000)}:R>`
+    ].join("\n");
+    await this.sendDragonGateWebhook(content);
+    await this.scheduleNextAlarm();
+  }
+
+  /**
+   * 龍門關閉時間已到則推送關閉通知 (由 Alarm 呼叫)
+   */
+  async checkDragonGateClose() {
+    if (!this.mainData.gateOpenTime || !this.mainData.gateCloseTime) return;
+    const closeTime = new Date(this.mainData.gateCloseTime);
+    if (isNaN(closeTime.getTime()) || closeTime > new Date()) return;
+
+    this.mainData.gateOpenTime = null;
+    await this.storage.put("mainData", this.mainData);
+    await this.sendDragonGateWebhook(`⚠️ 龍門已關閉。\n關閉時間: ${formatTaiwanDateTime(closeTime)}`);
+  }
+
+  /**
+   * 發送龍門 Discord Webhook 通知
+   */
+  async sendDragonGateWebhook(content) {
+    const webhookUrl = this.env.DISCORD_WEBHOOK_DRAGON;
+    if (!webhookUrl) {
+      console.log("ℹ️ [WEBHOOK] 未設定 DISCORD_WEBHOOK_DRAGON 環境變數，略過龍門 Webhook 推送。");
+      return;
+    }
+    try {
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content, username: "龍門監控" })
+      });
+      if (response.ok) {
+        console.log("✅ [WEBHOOK] 龍門通知已發送至 Discord！");
+      } else {
+        console.error(`❌ [WEBHOOK] 龍門通知發送失敗 (HTTP ${response.status}): ${await response.text()}`);
+      }
+    } catch (err) {
+      console.error("❌ [WEBHOOK] 龍門通知連線異常:", err.message);
+    }
   }
 
   /**

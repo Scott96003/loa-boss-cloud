@@ -34,7 +34,9 @@ const _recentKillDedupeCache = new Map();
 
 function _isDuplicateKillEvent(bossData) {
   if (!bossData || !bossData.death) return false;
-  const key = `${bossData.id || ''}_${bossData.bossName || ''}_${bossData.death}_${bossData.emblem || ''}_${bossData.type || 0}`;
+  // 不使用 id (不同管道可能送 ID / ID+100000 / 缺漏)，改以正規化名稱 (去除「活動」前綴) + 時間 + 血盟判斷
+  const normName = String(bossData.bossName || '').replace(/^活動/, '');
+  const key = `${normName}_${bossData.death}_${bossData.emblem || ''}_${bossData.type || 0}`;
   const now = Date.now();
   if (_recentKillDedupeCache.has(key)) {
     const prevTime = _recentKillDedupeCache.get(key);
@@ -86,6 +88,16 @@ function updateBossData(bossData) {
         }
         return false
       });
+
+      // 該筆擊殺已存在 deathList (例如另一管道已先送達)，只更新時間不重複通報
+      const alreadyRecorded = bossListData[index].deathList.some(
+        d => d.death === bossData.death && (d.emblem || '') === (bossData.emblem || '')
+      );
+      if (alreadyRecorded) {
+        console.log("ℹ️ [去重] 擊殺紀錄已存在，略過重複通報:", bossData.bossName, bossData.death, bossData.emblem);
+        updateBossRemainingTime(parseInt(item.id));
+        return;
+      }
 
       const newDeathEntry = {
         death: bossData.death,

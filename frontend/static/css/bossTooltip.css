@@ -1,0 +1,62 @@
+/* 全螢幕 Modal 容器樣式 */
+.full-screen-modal {
+    position: fixed; /* 固定在視窗上 */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #333; /* 深色背景，讓內容更突出，您可以自行調整 */
+    z-index: 1000; /* 確保它位於所有其他元素之上 */
+    display: flex; /* 使用 Flexbox 佈局 */
+    flex-direction: column; /* 垂直排列 Header 和 Content */
+    overflow: hidden; /* 避免整個 Modal 出現雙層滾動條 */
+}
+
+/* Modal 標頭樣式 */
+.modal-header {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background-color: #444; /* 標頭背景色 */
+    color: white; /* 文字顏色 */
+    height: 50px; /* 固定標頭高度 */
+    flex-shrink: 0; /* 標頭不縮小 */
+    border-bottom: 1px solid #555;
+}
+
+/* 返回按鈕樣式 */
+.modal-back-button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    padding: 5px 10px;
+    cursor: pointer;
+    margin-right: 15px; /* 與標題或其他內容保持距離 */
+}
+
+/* 標題樣式 */
+.modal-title {
+    font-size: 16px;
+    font-weight: bold;
+}
+
+/* Modal 內容區域樣式 */
+.modal-content {
+    flex-grow: 1; /* 佔用剩餘所有空間 */
+    overflow-y: auto; /* 內容過長時允許垂直滾動 */
+    padding: 10px;
+    color: white; /* 內容文字顏色 */
+}
+
+/* 內容區表格樣式 (可選，讓表格在手機上更好看) */
+.modal-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+.modal-content td {
+    padding: 5px;
+    border: 1px solid #555;
+}

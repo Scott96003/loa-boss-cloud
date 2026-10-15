@@ -1,0 +1,23 @@
+# 依賴套件
+node_modules/
+package-lock.json.bak
+
+# 環境變數與機密資訊
+.env
+.env.*
+!.env.example
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Cloudflare Wrangler 暫存
+.wrangler/
+
+# 作業系統暫存
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

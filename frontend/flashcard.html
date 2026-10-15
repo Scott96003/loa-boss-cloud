@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>國字字卡練習軟體</title>
+    <style>
+        /* --- 基礎樣式 --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        /* --- 按鈕樣式 --- */
+        .btn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease, opacity 0.3s;
+        }
+        
+        /* 紅色按鈕用於清除 */
+        .btn-danger {
+            background-color: #e74c3c;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            background-color: #c0392b;
+        }
+
+        .btn:hover:not(:disabled) {
+            background-color: #27ae60;
+        }
+
+        .btn:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+
+        /* --- 輸入區樣式 --- */
+        #add-form {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        #new-char-input {
+            flex-grow: 1;
+            padding: 12px;
+            border: 2px solid #bdc3c7;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        /* --- 字卡區塊樣式 --- */
+        .card-section {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #ecf0f1;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+
+        .card-section h2 {
+            margin-top: 0;
+            color: #34495e;
+            border-bottom: 2px solid #bdc3c7;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* --- 字卡樣式 (列表模式) --- */
+        .char-card {
+            display: inline-block;
+            margin: 8px;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-size: 36px;
+            font-weight: bold;
+            text-align: center;
+            position: relative; 
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .familiar {
+            background-color: #e8f8f5;
+            border: 2px solid #1abc9c;
+            color: #1abc9c;
+        }
+
+        .unfamiliar {
+            background-color: #fbecec;
+            border: 2px solid #e74c3c;
+            color: #e74c3c;
+        }
+
+        .toggle-hint {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: #3498db;
+            color: white;
+            font-size: 12px;
+            padding: 3px 6px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+        }
+
+        .char-card:hover .toggle-hint {
+            opacity: 1;
+        }
+        
+        /* 刪除按鈕樣式 */
+        .delete-btn {
+            position: absolute;
+            bottom: -5px; 
+            left: 50%;
+            transform: translateX(-50%);
+            background: #c0392b;
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 12px;
+            opacity: 0; 
+            transition: opacity 0.3s;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        .char-card:hover .delete-btn {
+            opacity: 1;
+        }
+
+
+        .empty-message {
+            color: #7f8c8d;
+            font-style: italic;
+            text-align: center;
+            padding: 20px;
+        }
+
+        /* --- 練習模式樣式 --- */
+        #practice-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #2c3e50;
+            color: white;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 20px;
+        }
+
+        #practice-char {
+            font-size: 30vh;
+            font-weight: 900;
+            margin-bottom: 50px;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+
+        .practice-controls button {
+            margin: 0 15px;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 10px;
+        }
+
+        #known-button {
+            background-color: #1abc9c;
+        }
+
+        #skip-button {
+            background-color: #e67e22;
+        }
+        
+        /* 結束練習按鈕 (已修正為 fixed) */
+        #exit-practice-button {
+            position: fixed;
+            top: 5px;
+            right: 5px;
+            background-color: #e74c3c;
+            padding: 10px 15px;
+            font-size: 14px;
+            z-index: 1001; 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="main-interface">
+        <h1>📚 國字字卡練習軟體</h1>
+
+        <div id="add-block">
+            <form id="add-form">
+                <input type="text" id="new-char-input" placeholder="輸入新的國字 (例如：魑魅魍魎)" maxlength="20" required>
+                <button type="submit" class="btn" id="add-button">添加</button>
+            </form>
+        </div>
+
+        <div class="card-section">
+            <h2>
+                <span style="color: #e74c3c;">⚠️ 不熟悉的字</span>
+                <button class="btn" id="start-practice-btn">🚀 開始練習</button>
+            </h2>
+            <div id="unfamiliar-list">
+                <p class="empty-message" id="unfamiliar-empty-message">目前沒有不熟悉的字！</p>
+            </div>
+        </div>
+
+        <div class="card-section">
+            <h2>
+                <span style="color: #1abc9c;">✅ 已熟悉的字</span>
+                <button class="btn btn-danger" id="clear-familiar-btn" disabled>🗑️ 一鍵清除</button>
+            </h2>
+            <div id="familiar-list">
+                <p class="empty-message" id="familiar-empty-message">目前沒有已熟悉的字！</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="practice-mode">
+        <button class="btn" id="exit-practice-button">❌ 結束練習</button>
+        <div id="practice-char"></div>
+        <div class="practice-controls">
+            <button class="btn" id="known-button">✅ 我會唸了 (標記為已熟悉)</button>
+            <button class="btn" id="skip-button">▶️ 跳過 (下一個)</button>
+        </div>
+    </div>
+
+    <script>
+        // --- JavaScript 邏輯 ---
+
+        const STORAGE_KEY = 'chineseFlashcards';
+        let cards = [];
+        
+        let practiceQueue = [];
+        let currentCardIndex = 0;
+
+        // DOM 元素引用
+        const mainInterface = document.getElementById('main-interface');
+        const practiceMode = document.getElementById('practice-mode');
+        const practiceCharDisplay = document.getElementById('practice-char');
+        const startPracticeBtn = document.getElementById('start-practice-btn');
+        const clearFamiliarBtn = document.getElementById('clear-familiar-btn'); // 新增引用
+        const knownButton = document.getElementById('known-button');
+        const skipButton = document.getElementById('skip-button');
+        const exitPracticeButton = document.getElementById('exit-practice-button');
+        
+        const unfamiliarListDiv = document.getElementById('unfamiliar-list');
+        const familiarListDiv = document.getElementById('familiar-list');
+        const unfamiliarEmptyMsg = document.getElementById('unfamiliar-empty-message');
+        const familiarEmptyMsg = document.getElementById('familiar-empty-message');
+        const addForm = document.getElementById('add-form');
+        const newCharInput = document.getElementById('new-char-input');
+
+        // --- 資料處理與儲存 ---
+
+        function loadCards() {
+            const storedData = localStorage.getItem(STORAGE_KEY);
+            if (storedData) {
+                cards = JSON.parse(storedData);
+            }
+        }
+
+        function saveCards() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(cards));
+        }
+
+        // --- 核心功能 (刪除與清除) ---
+        
+        /**
+         * 永久刪除單個字詞 (不再詢問)
+         * @param {string} character - 要刪除的國字
+         */
+        function deleteCharacter(character) {
+            cards = cards.filter(c => c.character !== character);
+            saveCards();
+            renderCards();
+        }
+
+        /**
+         * 一鍵清除所有已熟悉的字
+         */
+        function clearFamiliarCards() {
+            if (confirm('確定要永久清除所有「已熟悉的字」嗎？')) {
+                // 過濾掉 isFamiliar 為 true 的字
+                cards = cards.filter(c => !c.isFamiliar);
+                saveCards();
+                renderCards();
+            }
+        }
+        
+        // --- 列表渲染功能 ---
+
+        function createCardElement(cardData) {
+            const card = document.createElement('div');
+            card.dataset.char = cardData.character;
+            card.className = `char-card ${cardData.isFamiliar ? 'familiar' : 'unfamiliar'}`;
+            card.textContent = cardData.character;
+
+            // 提示切換
+            const hint = document.createElement('span');
+            hint.className = 'toggle-hint';
+            hint.textContent = cardData.isFamiliar ? '標記為不熟悉' : '標記為已熟悉';
+            card.appendChild(hint);
+            
+            // 刪除按鈕
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.textContent = '刪除';
+            
+            // 點擊刪除按鈕，停止事件傳播 (防止同時觸發卡片狀態切換)
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                deleteCharacter(cardData.character);
+            });
+            card.appendChild(deleteBtn);
+
+            // 點擊卡片事件：切換熟悉/不熟悉狀態
+            card.addEventListener('click', () => toggleFamiliarity(cardData.character, true));
+            return card;
+        }
+
+        function renderCards() {
+            unfamiliarListDiv.innerHTML = '';
+            familiarListDiv.innerHTML = '';
+
+            const unfamiliarCards = cards.filter(c => !c.isFamiliar);
+            const familiarCards = cards.filter(c => c.isFamiliar);
+
+            // 渲染不熟悉列表
+            if (unfamiliarCards.length > 0) {
+                unfamiliarEmptyMsg.style.display = 'none';
+                unfamiliarCards.forEach(card => {
+                    unfamiliarListDiv.appendChild(createCardElement(card));
+                });
+                startPracticeBtn.disabled = false;
+            } else {
+                unfamiliarEmptyMsg.style.display = 'block';
+                startPracticeBtn.disabled = true;
+            }
+
+            // 渲染已熟悉列表
+            if (familiarCards.length > 0) {
+                familiarEmptyMsg.style.display = 'none';
+                familiarCards.forEach(card => {
+                    familiarListDiv.appendChild(createCardElement(card));
+                });
+                clearFamiliarBtn.disabled = false; // 有字才能清除
+            } else {
+                familiarEmptyMsg.style.display = 'block';
+                clearFamiliarBtn.disabled = true;
+            }
+        }
+
+        function addCharacter(character) {
+            const existing = cards.find(c => c.character === character);
+            if (existing) {
+                console.log(`「${character}」已存在。`);
+                return;
+            }
+
+            cards.push({
+                character: character,
+                isFamiliar: false
+            });
+
+            saveCards();
+            renderCards();
+        }
+
+        function toggleFamiliarity(character, shouldRender = true) {
+            const card = cards.find(c => c.character === character);
+            if (card) {
+                card.isFamiliar = !card.isFamiliar;
+                saveCards();
+                if (shouldRender) {
+                    renderCards();
+                }
+            }
+        }
+
+        // --- 練習模式邏輯 (與 v2.1 相同) ---
+
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        function startPractice() {
+            practiceQueue = cards.filter(c => !c.isFamiliar).map(c => c.character);
+            if (practiceQueue.length === 0) {
+                alert('沒有不熟悉的字可以練習！請先添加或標記一些字。');
+                return;
+            }
+            
+            shuffleArray(practiceQueue);
+            currentCardIndex = 0;
+
+            mainInterface.style.display = 'none';
+            practiceMode.style.display = 'flex';
+
+            showCurrentCard();
+        }
+
+        function showCurrentCard() {
+            if (currentCardIndex < practiceQueue.length) {
+                practiceCharDisplay.textContent = practiceQueue[currentCardIndex];
+                knownButton.textContent = '✅ 我會唸了 (標記為已熟悉)';
+                skipButton.textContent = '▶️ 跳過 (下一個)';
+            } else {
+                finishPractice();
+            }
+        }
+
+        function handleKnown() {
+            const currentChar = practiceQueue[currentCardIndex];
+            toggleFamiliarity(currentChar, false); 
+            
+            currentCardIndex++;
+            showCurrentCard();
+        }
+
+        function handleSkip() {
+            currentCardIndex++;
+            showCurrentCard();
+        }
+
+        function finishPractice() {
+            alert(`本次練習結束！您共練習了 ${practiceQueue.length} 個字。`);
+            
+            practiceMode.style.display = 'none';
+            mainInterface.style.display = 'block';
+
+            renderCards(); 
+        }
+
+        // --- 事件監聽器與初始化 ---
+
+        addForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const character = newCharInput.value.trim();
+
+            if (character) {
+                for (let char of character) {
+                    addCharacter(char);
+                }
+            }
+            newCharInput.value = '';
+        });
+
+        startPracticeBtn.addEventListener('click', startPractice);
+        
+        // 新增：一鍵清除事件
+        clearFamiliarBtn.addEventListener('click', clearFamiliarCards); 
+
+        knownButton.addEventListener('click', handleKnown);
+        skipButton.addEventListener('click', handleSkip);
+        exitPracticeButton.addEventListener('click', finishPractice);
+
+        // 程式啟動：讀取資料並渲染畫面
+        loadCards();
+        renderCards();
+
+        // 啟動時加入一個範例字 (如果列表為空)
+        if (cards.length === 0) {
+            addCharacter('魑');
+            addCharacter('魅');
+            addCharacter('魍');
+            addCharacter('魎');
+            addCharacter('龘');
+            toggleFamiliarity('魑', false);
+            toggleFamiliarity('魅', false); // 設定 '魅' 為熟悉，以測試清除功能
+            renderCards();
+        }
+    </script>
+</body>
+</html>

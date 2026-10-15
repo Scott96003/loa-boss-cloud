@@ -1,0 +1,13 @@
+name = "loa-boss-worker"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+
+# 啟用 Durable Objects 來管理 WebSocket 連線與即時狀態廣播
+[durable_objects]
+bindings = [
+  { name = "BOSS_ROOM", class_name = "BossRoom" }
+]
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BossRoom"]

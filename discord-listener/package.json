@@ -1,0 +1,14 @@
+{
+  "name": "discord-listener",
+  "version": "1.0.0",
+  "description": "Discord Gateway listener for LoA Boss kills using User Token",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.18.0"
+  }
+}

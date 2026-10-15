@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>國字練習本產生器</title>
+    <style>
+        :root {
+            --cell-size: 2.8cm;
+            /* 國字格大小 */
+            --zhuyin-width: calc(var(--cell-size) * 0.4);
+            /* 注音格寬度 */
+            --grid-color: #ffcccc;
+            /* 輔助線顏色 */
+            --border-color: #333;
+            /* 外框顏色 */
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #f0f0f0;
+            font-family: "標楷體", "Kait Ti", serif;
+        }
+
+        /* A4 紙張 */
+        .page {
+            width: 21cm;
+            min-height: 29.7cm;
+            padding: 1cm;
+            margin: 1cm auto;
+            background: white;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            page-break-after: always;
+            /* 確保列印時分頁 */
+        }
+
+        /* 最後一頁不需要強制分頁 */
+        .page:last-child {
+            page-break-after: auto;
+        }
+
+        /* 練習格容器 */
+        .grid-container {
+            display: grid;
+            direction: rtl;
+            /* 由右至左排列 */
+            grid-auto-flow: column;
+            /* 先填滿垂直列 */
+            /* grid-template-rows 會由 JS 動態計算 */
+            /* grid-template-columns 會由 JS 動態計算 */
+            border-top: 1px solid var(--border-color);
+            border-left: 1px solid var(--border-color);
+        }
+
+        /* 每一組 (國字 + 注音) */
+        .char-group {
+            display: flex;
+            direction: ltr;
+            /* 內部維持由左至右 (國字在左，注音在右) */
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            box-sizing: border-box;
+        }
+
+        /* 國字格 */
+        .hanzi-box {
+            width: var(--cell-size);
+            height: var(--cell-size);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: calc(var(--cell-size) * 0.8);
+            border-right: 1px solid var(--border-color);
+            /* 與注音格的分隔線 */
+            box-sizing: border-box;
+        }
+
+        /* 國字格十字線 */
+        .hanzi-box::before {
+            /* 垂直線 */
+            content: "";
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 50%;
+            width: 1px;
+            border-left: 1px dashed var(--grid-color);
+            z-index: 1;
+        }
+
+        .hanzi-box::after {
+            /* 水平線 */
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            border-top: 1px dashed var(--grid-color);
+            z-index: 1;
+        }
+
+        /* 注音格容器 */
+        .zhuyin-box {
+            width: var(--zhuyin-width);
+            height: var(--cell-size);
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+        }
+
+        /* 個別注音格 (共3格) */
+        .zhuyin-cell {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: calc(var(--zhuyin-width) * 0.8);
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        /* 注音格分隔線 (第一格和第二格下方加虛線) */
+        .zhuyin-cell:not(:last-child)::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            border-bottom: 1px dashed var(--grid-color);
+        }
+
+        .char {
+            position: relative;
+            z-index: 2;
+        }
+
+
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .controls input,
+        .controls button {
+            padding: 5px 10px;
+            font-size: 14px;
+        }
+
+        /* 手機版樣式調整 */
+        @media screen and (max-width: 768px) {
+            .controls {
+                left: 50%;
+                transform: translateX(-50%);
+                width: 90%;
+                max-width: 400px;
+                top: 10px;
+                padding: 12px;
+                justify-content: center;
+                gap: 8px;
+            }
+
+            .controls label {
+                display: none;
+                /* 手機版隱藏標籤以節省空間，靠 placeholder */
+            }
+
+            .controls input[type="text"] {
+                flex: 1 1 100%;
+                /* 文字輸入框佔滿一行 */
+                height: 40px;
+                font-size: 16px;
+            }
+
+            .controls input[type="number"] {
+                width: 80px;
+                height: 40px;
+                font-size: 16px;
+                text-align: center;
+            }
+
+            /* 在手機上顯示單位提示 - input無法使用after，移除此無效樣式 */
+            /* .controls input[type="number"]::after { content: 'cm'; } */
+
+            .controls button {
+                flex: 1;
+                /* 按鈕平均分配寬度 */
+                height: 44px;
+                /* 加大觸控區域 */
+                font-size: 16px;
+                white-space: nowrap;
+            }
+        }
+
+        @media print {
+            body {
+                background: none;
+            }
+
+            .page {
+                margin: 0;
+                box-shadow: none;
+            }
+
+            .controls,
+            button {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="controls">
+        <label>輸入文字：</label>
+        <input type="text" id="inputChars" value="" placeholder="輸入要練習的字">
+        <label>格子大小(cm)：</label>
+        <input type="number" id="gridSize" value="1.8" step="0.1" min="1.0" max="5.0" style="width: 60px;"
+            placeholder="大小(cm)">
+        <button onclick="generateGrid()">更新範例</button>
+        <button onclick="window.print()">列印 A4</button>
+    </div>
+
+    <!-- 用來放所有頁面的容器 -->
+    <div id="pages-container"></div>
+
+    <script>
+        function generateGrid() {
+            const sizeInput = document.getElementById('gridSize').value;
+            const size = parseFloat(sizeInput);
+
+            // 設定變數
+            document.documentElement.style.setProperty('--cell-size', size + 'cm');
+
+            // 計算注音格寬度 (40% 的國字格)
+            const zhuyinRatio = 0.4;
+            const zhuyinWidth = size * zhuyinRatio;
+            const totalWidthPerChar = size + zhuyinWidth;
+
+            // A4: 21cm x 29.7cm, padding 1cm
+            const usefulWidth = 21 - 2;
+            const usefulHeight = 29.7 - 2;
+
+            // 計算可容納的行數與列數
+            const cols = Math.floor(usefulWidth / totalWidthPerChar);
+            const rows = Math.floor(usefulHeight / size); // 高度仍由 cell-size 決定
+            const cellsPerPage = rows * cols; // 單頁總格數
+
+            const mainContainer = document.getElementById('pages-container');
+            mainContainer.innerHTML = '';
+
+            const input = document.getElementById('inputChars').value;
+            const chars = input.split('');
+
+            // 計算總頁數，至少要有 1 頁
+            let totalPages = Math.ceil(chars.length / cellsPerPage);
+            if (totalPages === 0) totalPages = 1;
+
+            for (let p = 0; p < totalPages; p++) {
+                // 建立新的頁面
+                const page = document.createElement('div');
+                page.className = 'page';
+
+                // 建立 Grid Container
+                const container = document.createElement('div');
+                container.className = 'grid-container';
+
+                // 設定 Grid 樣式
+                container.style.gridTemplateColumns = `repeat(${cols}, calc(var(--cell-size) + var(--zhuyin-width)))`;
+                container.style.gridTemplateRows = `repeat(${rows}, var(--cell-size))`;
+
+                // 要放入此頁的字串範圍
+                const start = p * cellsPerPage;
+                const end = start + cellsPerPage;
+                // 本頁需要填充的字元 (包含實際文字)
+                // 若是最後一頁，即使文字沒那麼多，也要填滿空格到 cellsPerPage
+
+                for (let i = 0; i < cellsPerPage; i++) {
+                    const charIndex = start + i;
+
+                    // 建立外層 Group
+                    const group = document.createElement('div');
+                    group.className = 'char-group';
+
+                    // 1. 國字格
+                    const hanziBox = document.createElement('div');
+                    hanziBox.className = 'hanzi-box';
+
+                    if (charIndex < chars.length && chars[charIndex]) {
+                        hanziBox.innerHTML = `<span class="char">${chars[charIndex]}</span>`;
+                    }
+                    group.appendChild(hanziBox);
+
+                    // 2. 注音格
+                    const zhuyinBox = document.createElement('div');
+                    zhuyinBox.className = 'zhuyin-box';
+                    // 產生 3 個小格
+                    for (let j = 0; j < 3; j++) {
+                        const zCell = document.createElement('div');
+                        zCell.className = 'zhuyin-cell';
+                        zhuyinBox.appendChild(zCell);
+                    }
+                    group.appendChild(zhuyinBox);
+
+                    container.appendChild(group);
+                }
+
+                page.appendChild(container);
+                mainContainer.appendChild(page);
+            }
+        }
+
+        // 初始化
+        generateGrid();
+    </script>
+
+</body>
+
+</html>

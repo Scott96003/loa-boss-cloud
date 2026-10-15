@@ -1125,6 +1125,10 @@ export class BossRoom {
    * WebSocket 斷線事件
    */
   async webSocketClose(ws, code, reason, wasClean) {
+    // 休眠喚醒後記憶體為空，先從 Attachment 還原，才能正確移除此連線
+    if (!this.sessions.has(ws)) {
+      this.rehydrateSessions();
+    }
     const session = this.sessions.get(ws);
     if (session) {
       // 同一分頁重連時會沿用 clientId；只有對應仍指向此連線時才移除，避免刪掉新連線

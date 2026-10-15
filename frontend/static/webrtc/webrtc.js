@@ -811,12 +811,6 @@ const WebRTCClientModule = (function() {
             };
             this.ws.send(JSON.stringify(request));
 
-            // 同步廣播請求所有在線用戶回覆身分
-            this.ws.send(JSON.stringify({
-                type: 'request_peer_presence',
-                senderId: this.clientId
-            }));
-
             this.ui.appendMessage("[" + this.role + "] 已向伺服器請求在線用戶列表...");
         }
 

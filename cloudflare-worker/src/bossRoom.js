@@ -845,6 +845,8 @@ export class BossRoom {
 
       // 如果有真實 Discord 使用者資料，才列入在線成員追蹤
       if (hasRealUser) {
+        // 重新回報身分時未附帶狀態，則沿用既有的 online/idle，避免被重設為 online
+        const prevStatus = this.onlineUsers.get(effectiveId)?.user?.status;
         userInfo = {
           id: effectiveId,
           username: user.username || "成員",
@@ -852,7 +854,7 @@ export class BossRoom {
           nickname: user.nickname || null,
           displayName: user.displayName || user.nickname || user.global_name || user.username || "在線成員",
           avatar: user.avatar || null,
-          status: user.status || "online",
+          status: user.status || prevStatus || "online",
         };
         currentSession.user = userInfo;
 
@@ -1074,7 +1076,8 @@ export class BossRoom {
   async webSocketClose(ws, code, reason, wasClean) {
     const session = this.sessions.get(ws);
     if (session) {
-      if (session.clientId) {
+      // 同一分頁重連時會沿用 clientId；只有對應仍指向此連線時才移除，避免刪掉新連線
+      if (session.clientId && this.userToWs.get(session.clientId) === ws) {
         this.userToWs.delete(session.clientId);
       }
       if (session.userId && this.onlineUsers.has(session.userId)) {

@@ -167,6 +167,8 @@ function addBossTR(data) {
           buttonName = "追蹤";
         }
         cellContent += "<button class='trackBtn' id='track_" + encodeURIComponent(data.bossName) + "'>" + buttonName + "</button>";
+        // 手機卡片模式用：開啟死亡歷史抽屜
+        cellContent += "<button class='historyBtn' title='死亡歷史'>歷史</button>";
         // 手機卡片模式用：展開次要欄位與刪除按鈕
         cellContent += "<button class='moreBtn' title='更多'>⋯</button>";
         break;
@@ -227,6 +229,12 @@ function addBossTR(data) {
       if (trackBtn) {
         trackBtn.addEventListener("click", function () {
           trackBoss(this);
+        });
+      }
+      var historyBtn = cell.querySelector(".historyBtn");
+      if (historyBtn) {
+        historyBtn.addEventListener("click", function (event) {
+          showFullScreenView(event, data);
         });
       }
       var moreBtn = cell.querySelector(".moreBtn");

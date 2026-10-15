@@ -309,7 +309,8 @@ button:active {
 #bossList tbody tr.boss顏色-90 td:first-child { background: linear-gradient(var(--boss底色-90), var(--boss底色-90)), var(--surface); }
 }
 
-/* 「⋯」更多按鈕只在手機卡片模式出現 */
+/* 「歷史」「⋯」按鈕只在手機卡片模式出現 */
+#bossList td button.historyBtn,
 #bossList td button.moreBtn {
     display: none;
 }
@@ -706,6 +707,10 @@ button:active {
         min-height: 34px;
         padding: 4px 12px;
         font-size: 13px;
+    }
+
+    #bossList td button.historyBtn {
+        display: inline-block;
     }
 
     #bossList td button.moreBtn {

@@ -24,6 +24,10 @@ const KEYWORD = process.env.KEYWORD || "LoA363 頭目擊殺記錄 Boss Kills";
 
 let latestRebootTime = null;
 
+// Boss 清單上的 id (含活動版 id + 100000)；尚未載入時為 null，此時不在本地過濾，交由 Worker 判斷
+let managedBossIds = null;
+const MANAGED_BOSS_REFRESH_MS = 10 * 60 * 1000;
+
 if (!DISCORD_USER_TOKEN || DISCORD_USER_TOKEN === "your_discord_user_token_here") {
   console.error("❌ 錯誤：請先在 .env 檔案中設定您的 DISCORD_USER_TOKEN！");
   console.error("   詳細獲取步驟請參閱 README.md");
@@ -66,8 +70,8 @@ function shouldSkipBoss(localName, id, bossName) {
     return true;
   }
 
-  // 2. 傲慢之塔 (非樓層)：只允許特定 ID
-  if (localName === "傲慢之塔 Tower of Insolence" && ![46220, 146220, 46271].includes(numId)) {
+  // 2. 傲慢之塔 (非樓層)：只允許特定 ID , 46220 146220 是烏格奴斯, 46271 是非30F的吸血鬼
+  if (localName === "傲慢之塔 Tower of Insolence" && ![46220, 146220].includes(numId)) {
     return true;
   }
 
@@ -260,6 +264,32 @@ function getJson(targetUrl, headers = {}) {
   });
 }
 
+function setManagedBossIds(bossListData) {
+  const ids = new Set();
+  bossListData.forEach(b => {
+    const id = Number(b.id);
+    if (id) {
+      ids.add(id);
+      ids.add(id + 100000);
+    }
+  });
+  if (ids.size > 0) {
+    managedBossIds = ids;
+  }
+}
+
+async function refreshManagedBossIds() {
+  try {
+    const bossDataApiUrl = WORKER_API_URL.replace("/api/boss-death", "/api/boss-data");
+    const cloudData = await getJson(bossDataApiUrl);
+    if (cloudData && Array.isArray(cloudData.bossListData)) {
+      setManagedBossIds(cloudData.bossListData);
+    }
+  } catch (err) {
+    console.warn(`⚠️ [Boss 清單] 無法更新 Boss 清單 id: ${err.message}`);
+  }
+}
+
 async function sendToCloudflareWorker(deathInfo) {
   try {
     console.log(`🚀 [推播] 正在發送 Boss 死亡資料至 Cloudflare Worker:`, deathInfo);
@@ -438,15 +468,14 @@ async function fetchAndSyncHistoricalMessages() {
       const bossDataApiUrl = WORKER_API_URL.replace("/api/boss-death", "/api/boss-data");
       const currentCloudData = await getJson(bossDataApiUrl);
 
-      // 建立受管理 Boss 集合 (包含活動怪) 與既有紀錄集合
+      // 建立受管理 Boss 集合 (只用 id，包含活動版 id + 100000) 與既有紀錄集合
       const validBossMap = new Map();
       const cloudExistingRecordSet = new Set();
       if (currentCloudData && Array.isArray(currentCloudData.bossListData)) {
+        setManagedBossIds(currentCloudData.bossListData);
         currentCloudData.bossListData.forEach(b => {
           validBossMap.set(String(b.id), b.bossName);
           validBossMap.set(String(Number(b.id) + 100000), b.bossName);
-          validBossMap.set(b.bossName, b.bossName);
-          validBossMap.set(`活動${b.bossName}`, b.bossName);
 
           if (b.death && b.death !== "未知") {
             cloudExistingRecordSet.add(`${b.bossName}_${b.death}`);
@@ -463,9 +492,8 @@ async function fetchAndSyncHistoricalMessages() {
 
       // 檢查收集到的擊殺中，哪些尚未存在於雲端
       collectedKills.forEach(kill => {
-        // 歷史回溯補齊：只補齊系統受管理的 62 隻主要 Boss (包含活動怪)，略過未納管之雜怪
-        const isManagedBoss = validBossMap.has(String(kill.id)) || validBossMap.has(kill.bossName);
-        if (!isManagedBoss) {
+        // 歷史回溯補齊：只補齊 Boss 清單上的 id (包含活動怪)，同名但 id 不在清單上的不補
+        if (!validBossMap.has(String(kill.id))) {
           return;
         }
 
@@ -664,6 +692,10 @@ function handleDispatchEvent(eventType, eventData) {
         for (const embed of eventData.embeds) {
           const deathInfo = parseBossEmbed(embed);
           if (deathInfo) {
+            if (managedBossIds && !managedBossIds.has(Number(deathInfo.id))) {
+              console.log(`[過濾] 跳過不在 Boss 清單上的 Boss: ${deathInfo.bossName} (${deathInfo.id})`);
+              continue;
+            }
             const killKey = `${deathInfo.id}_${deathInfo.bossName}_${deathInfo.death}_${deathInfo.emblem || ''}`;
             const now = Date.now();
             if (recentPushedKills.has(killKey) && (now - recentPushedKills.get(killKey) < 30000)) {
@@ -716,3 +748,4 @@ function reconnect() {
 
 // 啟動連線
 connectGateway();
+setInterval(refreshManagedBossIds, MANAGED_BOSS_REFRESH_MS);

@@ -20,7 +20,7 @@
     <link rel="stylesheet" href="./static/css/bossTooltip.css?v=20261015_sheet3">
     <link rel="stylesheet" href="./static/css/auth.css?v=20261015_v5">
     <link rel="icon" type="image/png" href="./icon/favicon.ico">
-    <link rel="stylesheet" href="./static/css/main.css?v=20261015_sheet3">
+    <link rel="stylesheet" href="./static/css/main.css?v=20261016_msgsheet">
     <script type="text/javascript" src="./static/config.js?v=20261015_no_weekly"></script>
     <script type="text/javascript" src="./static/auth.js?v=20261015_presence_fix"></script>
     <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_ui"></script>
@@ -33,7 +33,7 @@
     <script type="text/javascript" src="./static/dashboard.js?v=20261015_sheet3"></script>
     <script type="text/javascript" src="./static/messageListen.js?v=20261015_no_weekly"></script>
     <script type="text/javascript" src="./static/sendMessageToDiscord.js?v=20261015_no_weekly"></script>
-    <script type="text/javascript" src="./static/onLoading.js?v=20261015_mobile"></script>
+    <script type="text/javascript" src="./static/onLoading.js?v=20261016_msgsheet"></script>
     <script type="text/javascript" src="./static/dragonGate.js?v=20261015_mobile"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261015_presence_status"></script>
     <script type="text/javascript" src="./static/webrtc/webrtc_client.js?v=20261015_no_weekly"></script>
@@ -97,7 +97,20 @@
                 </tbody>
             </table>
         </div>
-        <div class="message-container" id="messageContainer" style="display:block;"></div>
+        <!-- 訊息區：桌面版為底部固定區塊；手機版為可下拉關閉的底部抽屜 -->
+        <div id="messageSheet" class="msg-sheet">
+            <div class="msg-backdrop"></div>
+            <div class="msg-panel" role="dialog" aria-label="訊息紀錄">
+                <div class="msg-grab">
+                    <div class="msg-handle"></div>
+                    <div class="msg-header">
+                        <div class="msg-title">訊息紀錄</div>
+                        <button class="msg-close" aria-label="關閉">✕</button>
+                    </div>
+                </div>
+                <div class="message-container" id="messageContainer" style="display:block;"></div>
+            </div>
+        </div>
         <div id="setting_container">
             <button id="toggleMessageContainer" style="width: 80px;">顯示訊息</button><br>
             <button id="toggleSettingContainer" style="width: 80px;">設定</button><br>

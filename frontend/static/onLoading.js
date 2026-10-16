@@ -78,6 +78,8 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
+    setupMessageSheet();
+
     // 手機版音量按鈕：點擊開關音量滑桿，點其他地方自動收起
     var volumeControl = document.getElementById('volumeControl');
     document.getElementById('toggleVolumeBtn').addEventListener('click', function (event) {
@@ -237,6 +239,94 @@ window.onload = function () {
 
     if (isMobileDevice()) {
         document.getElementById("dragonGateStatusContainer").classList.toggle('hidden');
-        document.getElementById("messageContainer").classList.toggle('hidden');
+        // 用 add 而非 toggle：DOMContentLoaded 已在窄螢幕先收起，toggle 會把它又打開
+        document.getElementById("messageContainer").classList.add('hidden');
     }
 };
+/**
+ * 手機版訊息抽屜：與死亡歷史抽屜相同的操作方式
+ * （點遮罩、✕、下滑拖曳、手機返回鍵皆可關閉）。
+ * 開關狀態仍以 #messageContainer 的 hidden class 為準，其他程式照舊切換即可。
+ */
+function setupMessageSheet() {
+    var sheet = document.getElementById('messageSheet');
+    var container = document.getElementById('messageContainer');
+    if (!sheet || !container) return;
+
+    var panel = sheet.querySelector('.msg-panel');
+    var grab = sheet.querySelector('.msg-grab');
+    var mobileQuery = window.matchMedia("(max-width: 600px)");
+    var prevOverflow = "";
+
+    function isOpen() {
+        return !container.classList.contains('hidden');
+    }
+
+    function close() {
+        container.classList.add('hidden');
+    }
+
+    // 依 hidden class 同步抽屜狀態、鎖定背景捲動與返回鍵紀錄
+    function sync() {
+        var open = isOpen() && mobileQuery.matches;
+        if (open === sheet.classList.contains('open')) return;
+        sheet.classList.toggle('open', open);
+        panel.style.transform = "";
+        if (open) {
+            prevOverflow = document.body.style.overflow;
+            document.body.style.overflow = "hidden";
+            history.pushState({ messageSheet: true }, "");
+            container.scrollTop = container.scrollHeight;
+        } else {
+            document.body.style.overflow = prevOverflow;
+            // 由 ✕、遮罩或按鈕關閉時，消掉開啟時 push 的紀錄
+            if (history.state && history.state.messageSheet) {
+                history.back();
+            }
+        }
+    }
+
+    new MutationObserver(sync).observe(container, { attributes: true, attributeFilter: ['class'] });
+    mobileQuery.addEventListener('change', sync);
+
+    window.addEventListener('popstate', function () {
+        if (sheet.classList.contains('open')) close();
+    });
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && sheet.classList.contains('open')) close();
+    });
+    sheet.querySelector('.msg-backdrop').addEventListener('click', close);
+    sheet.querySelector('.msg-close').addEventListener('click', close);
+
+    // 拖曳標頭往下滑可關閉
+    var startY = 0;
+    var startTime = 0;
+    var dragY = 0;
+    var dragging = false;
+    grab.addEventListener('touchstart', function (e) {
+        if (e.target.closest('.msg-close')) return;
+        dragging = true;
+        startY = e.touches[0].clientY;
+        startTime = Date.now();
+        dragY = 0;
+        panel.classList.add('msg-dragging');
+    }, { passive: true });
+    grab.addEventListener('touchmove', function (e) {
+        if (!dragging) return;
+        dragY = Math.max(0, e.touches[0].clientY - startY);
+        panel.style.transform = "translateY(" + dragY + "px)";
+    }, { passive: true });
+    grab.addEventListener('touchend', function () {
+        if (!dragging) return;
+        dragging = false;
+        panel.classList.remove('msg-dragging');
+        var velocity = dragY / Math.max(1, Date.now() - startTime);
+        if (dragY > 120 || velocity > 0.6) {
+            close();
+        } else {
+            panel.style.transform = "";
+        }
+    });
+
+    sync();
+}

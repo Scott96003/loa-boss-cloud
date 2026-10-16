@@ -18,3 +18,7 @@ AUTH_JWT_SECRET="loa_boss_super_secret_jwt_key_2026"
 # 4. 目標伺服器與頻道 (預設已設定為您指定的伺服器與頻道)
 DISCORD_TARGET_GUILD_ID="1198482702932914277"
 DISCORD_TARGET_CHANNEL_ID="1426495371332292608"
+
+# 5. 管理 API 密鑰 (選填，未設定則 /api/admin/* 停用)
+# 正式環境請用 npx wrangler secret put ADMIN_API_KEY 設定
+ADMIN_API_KEY="your_random_admin_api_key"

@@ -181,6 +181,35 @@ function syncBossLatestDeathAndEmblem(bossData) {
   }
 }
 
+/**
+ * 固定時間比對字串，避免以回應時間推測密鑰
+ */
+function timingSafeEqual(a, b) {
+  const enc = new TextEncoder();
+  const bufA = enc.encode(String(a));
+  const bufB = enc.encode(String(b));
+  let diff = bufA.length ^ bufB.length;
+  for (let i = 0; i < bufB.length; i++) {
+    diff |= (bufA[i] ?? 0) ^ bufB[i];
+  }
+  return diff === 0;
+}
+
+/**
+ * 正規化 Boss 名稱 (去除空白、間隔號與「活動」前綴)，用於比對同一隻 Boss 的紀錄
+ */
+function normalizeKillBossName(name) {
+  return String(name || '').replace(/[・．\s]/g, '').replace(/^活動/, '');
+}
+
+/**
+ * 解析訊息區字串，例如「2026-10-17 03:59:00【恐怖的吸血鬼】被 度估酒鑒 擊殺」
+ */
+function parseKillMessage(msg) {
+  const m = String(msg).match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})(?::\d{2})?.*?【(.+?)】被 (.*) 擊殺\s*$/);
+  return m ? { death: m[1], bossName: m[2], emblem: m[3] } : null;
+}
+
 
 /**
  * 取得下一個整點 (+5 秒) 的時間戳記；台灣時區為 UTC+8，整點邊界與 UTC 相同
@@ -575,6 +604,51 @@ export class BossRoom {
   }
 
   /**
+   * 從各 Boss 的 deathList 與訊息區刪除指定擊殺 (以 Boss 名稱、時間、血盟比對)
+   * @param {Array<{bossName: string, death: string, emblem: string}>} records - 要刪除的擊殺
+   * @param {boolean} dryRun - 為 true 時只回報會刪除的紀錄，不修改資料
+   */
+  removeKillRecords(records, dryRun = false) {
+    const keyOf = (bossName, death, emblem) =>
+      `${normalizeKillBossName(bossName)}|${String(death || '').trim().slice(0, 16)}|${String(emblem || '').trim()}`;
+    const targets = new Set(records.map(r => keyOf(r.bossName, r.death, r.emblem)));
+
+    const removedDeathList = [];
+    (this.mainData.bossListData || []).forEach(boss => {
+      if (!Array.isArray(boss.deathList)) return;
+      const kept = boss.deathList.filter(dl => {
+        const hit = targets.has(keyOf(dl.bossName || boss.bossName, dl.death, dl.emblem));
+        if (hit) removedDeathList.push({ bossId: boss.id, death: dl.death, emblem: dl.emblem, bossName: dl.bossName || boss.bossName });
+        return !hit;
+      });
+      if (dryRun || kept.length === boss.deathList.length) return;
+
+      boss.deathList = kept;
+      // 若目前顯示的最新死亡正是被刪除的紀錄，先清空再以剩餘紀錄重新同步
+      if (targets.has(keyOf(boss.bossName, boss.death, boss.emblem))) {
+        boss.death = "";
+        boss.emblem = "";
+      }
+      syncBossLatestDeathAndEmblem(boss);
+      refreshBossComputedFields(boss, this.mainData.config?.rebootTime, new Date());
+    });
+
+    const removedMessages = [];
+    const keptMessages = (this.mainData.messageList || []).filter(msg => {
+      const parsed = parseKillMessage(msg);
+      const hit = parsed && targets.has(keyOf(parsed.bossName, parsed.death, parsed.emblem));
+      if (hit) removedMessages.push(msg);
+      return !hit;
+    });
+    if (!dryRun) {
+      this.mainData.messageList = keptMessages;
+      if (this.mainData.config) this.mainData.config.messageList = keptMessages;
+    }
+
+    return { removedDeathList, removedMessages };
+  }
+
+  /**
    * 清理過期資料：
    * 1. 刪除超過 7 天前的資料 (即使重開機時間更久以前，也只保留 7 天)
    * 2. 刪除早於伺服器重啟時間的資料
@@ -850,6 +924,43 @@ export class BossRoom {
           rebootTime: rebootDate.toISOString(),
           clearedBossCount
         }, { headers: corsHeaders });
+      } catch (err) {
+        return Response.json({ success: false, error: err.message }, { status: 400, headers: corsHeaders });
+      }
+    }
+
+    // API: 管理用，刪除指定的錯誤擊殺紀錄 (需 ADMIN_API_KEY；body.dryRun 為 true 時只回報不寫入)
+    if (url.pathname === "/api/admin/remove-kills" && request.method === "POST") {
+      if (!this.env.ADMIN_API_KEY) {
+        return Response.json({ success: false, error: "未設定 ADMIN_API_KEY，管理 API 停用" }, { status: 503, headers: corsHeaders });
+      }
+      const authHeader = request.headers.get("Authorization") || "";
+      if (!timingSafeEqual(authHeader, `Bearer ${this.env.ADMIN_API_KEY}`)) {
+        return Response.json({ success: false, error: "未授權" }, { status: 401, headers: corsHeaders });
+      }
+
+      try {
+        const body = await request.json();
+        if (!Array.isArray(body.records) || body.records.length === 0) {
+          return Response.json({ success: false, error: "records 必須為非空陣列" }, { status: 400, headers: corsHeaders });
+        }
+        const result = this.removeKillRecords(body.records, Boolean(body.dryRun));
+
+        if (!body.dryRun && (result.removedDeathList.length > 0 || result.removedMessages.length > 0)) {
+          this.mainData.last_updated = new Date().toISOString();
+          await this.storage.put("mainData", this.mainData);
+          this.broadcast(JSON.stringify({
+            type: "Sync_Boss_Data",
+            bossListData: this.mainData.bossListData,
+            config: this.mainData.config,
+            gateOpenTime: this.mainData.gateOpenTime,
+            gateCloseTime: this.mainData.gateCloseTime,
+            serverCached: true
+          }));
+        }
+
+        console.log(`[ADMIN] remove-kills${body.dryRun ? " (dry-run)" : ""}: deathList ${result.removedDeathList.length} 筆、訊息 ${result.removedMessages.length} 筆`);
+        return Response.json({ success: true, dryRun: Boolean(body.dryRun), ...result }, { headers: corsHeaders });
       } catch (err) {
         return Response.json({ success: false, error: err.message }, { status: 400, headers: corsHeaders });
       }

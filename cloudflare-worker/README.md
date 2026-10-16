@@ -122,5 +122,7 @@ npx wrangler secret put DISCORD_CLIENT_ID
 npx wrangler secret put DISCORD_CLIENT_SECRET
 npx wrangler secret put DISCORD_BOT_TOKEN
 npx wrangler secret put AUTH_JWT_SECRET
+# 選填：管理 API (/api/admin/remove-kills) 密鑰，未設定則管理 API 停用
+npx wrangler secret put ADMIN_API_KEY
 ```
 

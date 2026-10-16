@@ -50,7 +50,7 @@ cloudflare-worker/
 
 2. **啟動本地模擬伺服器**：
    ```bash
-   npx wrangler dev
+   npx wrangler dev --config wrangler.toml
    ```
    * 預設會啟動於 `http://localhost:8787`。
    * WebSocket 端點為：`ws://localhost:8787/ws`。
@@ -78,7 +78,7 @@ cloudflare-worker/
 
 2. **一鍵部署**：
    ```bash
-   npx wrangler deploy
+   npx wrangler deploy --config wrangler.toml
    ```
    部署完成後，Wrangler 會輸出一個專屬的網址，例如：
    `https://loa-boss-worker.<你的帳號子網域>.workers.dev`
@@ -118,11 +118,11 @@ DISCORD_TARGET_CHANNEL_ID="1426495371332292608"
 ### 2. 雲端部署加密變數 (Wrangler Secret)
 部署至 Cloudflare 後，請透過以下指令將金鑰設定為安全變數：
 ```bash
-npx wrangler secret put DISCORD_CLIENT_ID
-npx wrangler secret put DISCORD_CLIENT_SECRET
-npx wrangler secret put DISCORD_BOT_TOKEN
-npx wrangler secret put AUTH_JWT_SECRET
+npx wrangler secret put DISCORD_CLIENT_ID --config wrangler.toml
+npx wrangler secret put DISCORD_CLIENT_SECRET --config wrangler.toml
+npx wrangler secret put DISCORD_BOT_TOKEN --config wrangler.toml
+npx wrangler secret put AUTH_JWT_SECRET --config wrangler.toml
 # 選填：管理 API (/api/admin/remove-kills) 密鑰，未設定則管理 API 停用
-npx wrangler secret put ADMIN_API_KEY
+npx wrangler secret put ADMIN_API_KEY --config wrangler.toml
 ```
 

@@ -166,6 +166,9 @@ http://localhost:8090/index.html
 
 ## 5. 部署後端：cloudflare-worker
 
+> ⚠️ 本節所有 `wrangler` 指令都要在 `cloudflare-worker/` 目錄執行，並加上 `--config wrangler.toml`（或用 `npm run deploy`、`npm run dev`）。
+> Wrangler 尋找設定檔時會優先採用上層目錄的 `wrangler.jsonc`，不加 `--config` 會改成部署／設定根目錄的前端 `loa-boss-web`，Worker 本身卻沒有更新。
+
 ### 5.1 安裝相依套件
 
 ```bash
@@ -198,22 +201,22 @@ new_sqlite_classes = ["BossRoom"]
 
 ```bash
 # 必填：登入驗證
-npx wrangler secret put DISCORD_CLIENT_ID
-npx wrangler secret put DISCORD_CLIENT_SECRET
-npx wrangler secret put DISCORD_BOT_TOKEN
-npx wrangler secret put AUTH_JWT_SECRET
+npx wrangler secret put DISCORD_CLIENT_ID --config wrangler.toml
+npx wrangler secret put DISCORD_CLIENT_SECRET --config wrangler.toml
+npx wrangler secret put DISCORD_BOT_TOKEN --config wrangler.toml
+npx wrangler secret put AUTH_JWT_SECRET --config wrangler.toml
 
 # 選填：目標伺服器／頻道（未設定則使用程式內預設值）
-npx wrangler secret put DISCORD_TARGET_GUILD_ID
-npx wrangler secret put DISCORD_TARGET_CHANNEL_ID
+npx wrangler secret put DISCORD_TARGET_GUILD_ID --config wrangler.toml
+npx wrangler secret put DISCORD_TARGET_CHANNEL_ID --config wrangler.toml
 
 # 選填：Webhook 推播
-npx wrangler secret put DISCORD_WEBHOOK_ELDER
-npx wrangler secret put DISCORD_WEBHOOK_TOWER
-npx wrangler secret put DISCORD_WEBHOOK_CAMP
-npx wrangler secret put DISCORD_WEBHOOK_WILD
-npx wrangler secret put DISCORD_WEBHOOK_ALL
-npx wrangler secret put DISCORD_WEBHOOK_DRAGON
+npx wrangler secret put DISCORD_WEBHOOK_ELDER --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_TOWER --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_CAMP --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_WILD --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_ALL --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_DRAGON --config wrangler.toml
 ```
 
 `AUTH_JWT_SECRET` 請用高強度隨機字串，可用以下指令產生：
@@ -227,7 +230,7 @@ openssl rand -base64 48
 確認已設定的 secrets（只會列出名稱，不會顯示值）：
 
 ```bash
-npx wrangler secret list
+npx wrangler secret list --config wrangler.toml
 ```
 
 > 第一次部署前若 Worker 尚不存在，`secret put` 會詢問是否建立，回答 `y` 即可；也可以先執行 5.4 部署，再回來設 secrets。
@@ -235,7 +238,7 @@ npx wrangler secret list
 ### 5.4 部署
 
 ```bash
-npx wrangler deploy
+npx wrangler deploy --config wrangler.toml
 ```
 
 成功後會輸出網址，例如：
@@ -258,7 +261,7 @@ curl -s $WORKER/api/boss-data | head -c 500
 
 ```bash
 cp .dev.vars.example .dev.vars   # 填入測試值，.dev.vars 已被 .gitignore 排除
-npx wrangler dev                 # http://localhost:8787
+npx wrangler dev --config wrangler.toml                 # http://localhost:8787
 ```
 
 ---
@@ -586,7 +589,7 @@ curl -X POST $WORKER/api/boss-death \
 
 ```bash
 cd cloudflare-worker
-npx wrangler deploy
+npx wrangler deploy --config wrangler.toml
 ```
 
 - 部署是原子性的，幾秒內全球生效；Durable Object 內的資料**不會**因部署而清除。
@@ -594,8 +597,8 @@ npx wrangler deploy
 - 出問題時回滾：
 
 ```bash
-npx wrangler deployments list
-npx wrangler rollback            # 回到上一個版本
+npx wrangler deployments list --config wrangler.toml
+npx wrangler rollback --config wrangler.toml            # 回到上一個版本
 ```
 
 ### 9.2 更新前端
@@ -674,14 +677,14 @@ sudo systemctl restart loa-listener
 
 ```bash
 cd cloudflare-worker
-npx wrangler tail          # 即時查看正式環境 log（含 console.log）
+npx wrangler tail --config wrangler.toml          # 即時查看正式環境 log（含 console.log）
 ```
 
 | 症狀 | 可能原因 | 處理 |
 | --- | --- | --- |
 | 部署失敗提到 Durable Object migration | 修改了既有 migration tag | 恢復原 tag，新變更改用新的 migration |
-| `/api/auth/config` 的 `clientId` 為空 | 未設定 secret | `npx wrangler secret put DISCORD_CLIENT_ID` |
-| Webhook 沒推播 | 未設定或 Webhook 已被刪除 | `npx wrangler secret list` 確認，重新設定 |
+| `/api/auth/config` 的 `clientId` 為空 | 未設定 secret | `npx wrangler secret put DISCORD_CLIENT_ID --config wrangler.toml` |
+| Webhook 沒推播 | 未設定或 Webhook 已被刪除 | `npx wrangler secret list --config wrangler.toml` 確認，重新設定 |
 
 ### listener
 

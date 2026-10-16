@@ -67,60 +67,6 @@ const getBossCount = (obj) => {
 };
 
 /**
- * 將新的 boss 資料新增到 bossListData 中
- */
-function addToBossList() {
-  var bossid = document.getElementById("bossid").value;
-  var bossName = document.getElementById("bossName").value;
-  var respawnTime = document.getElementById("respawnTime").value;
-
-  var now = new Date();
-  now.setHours(now.getHours() - 7);
-
-  var data = {
-    id: bossid,
-    bossName: bossName,
-    respawnTime: respawnTime,
-    death: formatDateTime(now),
-    deathList: []
-  }
-  if (insertBoss(data)) {
-    bossListData.push(data);
-    // 在新增資料時才計算一次
-    data.result = findLostBoss(data);
-    data.respawnCount = data.result.rebornCount;
-    sortListByRespawnTime();
-    saveToLocalStorage();
-  } else {
-    alert("已有相同id 或名稱的boss");
-  }
-
-  // 清空輸入框
-  document.getElementById("bossid").value = "";
-  document.getElementById("bossName").value = "";
-  document.getElementById("respawnTime").value = "";
-}
-
-/**
- * 檢查新增的 boss 資料是否有重複的 id 或名稱
- * @param {object} data - 新的 boss 資料
- * @returns {boolean} - 如果沒有重複則返回 true，否則返回 false
- */
-function insertBoss(data) {
-  var check = true
-  bossListData.forEach(function (item) {
-    if (item.id == data.id) {
-      check = false;
-    }
-    if (item.bossName == data.bossName) {
-      check = false;
-    }
-  })
-  console.log("新增boss前檢查id  name 都沒有重複")
-  return check;
-}
-
-/**
  * 將 boss 資料新增為表格的一行
  * @param {object} data - boss 資料
  */
@@ -811,18 +757,6 @@ function getTimeDiff(bossData) {
     } else {
       bossData.已死亡 = 0;
     }
-  }
-}
-
-/**
- * 重置所有資料為預設值
- */
-function resetData() {
-  var confirmation = confirm("確定重置所有資料使用預設值？");
-  if (confirmation) {
-    bossListData = defaultData;
-    sortListByRespawnTime();
-    saveToLocalStorage();
   }
 }
 

@@ -99,44 +99,6 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
 
-    // 設定按鈕
-    document.getElementById('toggleSettingContainer').addEventListener('click', function () {
-        document.getElementById('setting_div').classList.toggle('hidden');
-        document.getElementById("dragonGateStatusContainer").classList.toggle('hidden');
-    });
-
-    // 添加事件监听器
-    bossTable.addEventListener("input", function (event) {
-        var target = event.target;
-        // 检查是否是表格单元格
-        if (target.tagName === "TD") {
-            // 处理表格单元格内容变化事件
-            console.log("表格单元格内容被修改了：", target.innerText);
-            // 在这里可以执行您想要的操作，例如更新数据或触发其他事件等
-            var row = target.parentNode; // 获取单元格所在的行
-
-
-            var data = {
-                id: row.cells[7].innerText,
-                bossName: row.cells[1].innerText,
-                respawnTime: row.cells[2].innerText,
-                death: row.cells[3].innerText
-            }
-
-            bossListData.forEach(function (item, index) {
-                if ((item.id == data.id) || (item.bossName == data.bossName)) {
-                    console.log("改變data");
-                    bossListData[index].id = row.cells[9].innerText;
-                    bossListData[index].bossName = row.cells[1].innerText;
-                    bossListData[index].respawnTime = row.cells[2].innerText;
-                    bossListData[index].death = row.cells[3].innerText;
-                    console.log(bossListData[index]);
-                }
-            });
-            console.log(bossListData);
-        }
-    });
-
     // 監聽拉條值的變化
     slider.addEventListener("input", () => {
         config.voiceCount = parseInt(slider.value, 10);
@@ -145,25 +107,6 @@ document.addEventListener("DOMContentLoaded", function () {
         // 音量為個人設定，調整後立即存檔，不等延遲存檔
         localStorage.setItem("voiceCount", config.voiceCount);
     });
-
-
-    var btn_addToBossList = document.getElementById("btn_addToBossList");
-    var btn_refresh = document.getElementById("btn_refresh");
-    var btn_resetData = document.getElementById("btn_resetData");
-
-
-    btn_addToBossList.addEventListener("click", function () {
-        addToBossList(this);
-    });
-    btn_refresh.addEventListener("click", function () {
-        refresh(this);
-    });
-
-    btn_resetData.addEventListener("click", function () {
-        resetData(this);
-    });
-
-    document.getElementById('btn_saveToDB').addEventListener('click', actualSaveLogic);
 
 
     const overlay = document.getElementById('tts-overlay');

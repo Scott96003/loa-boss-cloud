@@ -259,24 +259,6 @@
             <span id="discordLogoutBtn" class="discord-logout-link">登出</span>
         </div>
         <div class="flex-container">
-            <div id="setting_div" class="hidden">
-                <input type="number" id="bossid" placeholder="bossID">
-                <input type="text" id="bossName" placeholder="頭目名稱">
-                <input type="number" id="respawnTime" placeholder="重生時間(小時)">
-                <br>
-                <button id="btn_addToBossList">新增</button>
-                <button id="btn_resetData">重置預設</button>
-                <button id="btn_saveToDB">儲存資料</button>
-                <br>
-                <button id="btn_refresh">重整</button>
-                <div>            
-                    <span style="color: var(--boss顏色-25)">重生已過1/4  </span>
-                    <span style="color: var(--boss顏色-50)">重生已過1/2  </span>
-                    <span style="color: var(--boss顏色-75)">  重生已過3/4  </span>
-                    <span style="color: var(--boss顏色-90)">  重生已過9/10  </span>
-                </div>
-            </div>
-
             <div id="dragonGateStatusContainer" style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
                 <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
                 <div id="dragonGateStatusDisplay"></div>
@@ -305,7 +287,6 @@
         <div class="message-container" id="messageContainer" style="display:block;"></div>
         <div id="setting_container">
             <button id="toggleMessageContainer" style="width: 80px;">顯示訊息</button><br>
-            <button id="toggleSettingContainer" style="width: 80px;">設定</button><br>
             <div>
                 <span>音量:</span><span id="percentageDisplay">50%</span><br>
                 <input type="range" id="percentageSlider" min="0" max="100" step="1" value="50" style="width: 80px;">            

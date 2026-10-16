@@ -1,7 +1,7 @@
 // 全域變數：定義原始預設配置
 const defaultColumnConfig = [
 
-  { key: 'bossName', header: '頭目名稱', type: 'data', editable: true },
+  { key: 'bossName', header: '頭目名稱', type: 'data', editable: false },
   { key: 'respawnCount', header: '剩餘數目', type: 'computed', editable: false, cellId: 'respawn-count' },
   { key: 'death', header: '死亡時間', type: 'data', editable: false, format: 'tooltip' },
   { key: 'emblem', header: '擊殺血盟', type: 'data', editable: false },

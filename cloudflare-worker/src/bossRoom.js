@@ -1289,13 +1289,23 @@ export class BossRoom {
       matchedBoss = this.mainData.bossListData.find(b => {
         const bId = Number(b.id);
         if (dId) {
-          return bId === dId || bId === dId % 100000;
+          return bId === dId || bId + 100000 === dId;
         }
         const bNameNorm = normalizeName(b.bossName);
         return b.bossName === deathInfo.bossName ||
                (`活動${b.bossName}` === deathInfo.bossName) ||
                (bNameNorm && dNameNorm && bNameNorm === dNameNorm);
       });
+
+      // 不在 Boss 清單上的擊殺整筆略過：不寫入 deathList / 訊息區，也不廣播與推送 Webhook
+      if (!matchedBoss) {
+        console.log(`[略過未列管 Boss] ${deathInfo.bossName} (${deathInfo.id}) 不在 Boss 清單上`);
+        return {
+          success: false,
+          message: "Boss 不在清單上，已略過",
+          ignored: true
+        };
+      }
 
       if (matchedBoss) {
         if (!matchedBoss.deathList || !Array.isArray(matchedBoss.deathList)) {

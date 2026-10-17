@@ -1,20 +1,16 @@
 /**
  * BossRoom - Cloudflare Durable Object
  * 
- * 完整取代原本 Python FastAPI 的 ConnectionManager 與 WebRTC/WebSocket 伺服器功能。
+ * 完整取代原本 Python FastAPI 的 ConnectionManager 與 WebSocket 伺服器功能。
  * 負責：
- * 1. 集中管理所有客戶端的 WebSocket 連線
- * 2. 處理 WebRTC 信令轉發 (Offer / Answer / ICE Candidate)
- * 3. 處理 Boss 擊殺全域廣播 (Boss_Death)；Sync_Boss_Data 只由伺服器發出
- * 4. 持久化最新 Boss 狀態 (即使發布者離線，新進來的玩家依然能立即取得最新資料)
- * 5. 提供 HTTP REST API 供外部直接查詢與注入 Boss 死亡資料
+ * 1. 集中管理所有客戶端的 WebSocket 連線與在線名單
+ * 2. 唯一資料來源：Boss_Death / Sync_Boss_Data / Server_Reboot 只由伺服器發出，前端只接收
+ * 3. 持久化最新 Boss 狀態 (即使發布者離線，新進來的玩家依然能立即取得最新資料)
+ * 4. 提供 HTTP REST API 供外部直接查詢與注入 Boss 死亡資料
  */
 
 import defaultBossList from "./defaultBossList.json";
 import bossCategories from "./categories.json";
-
-const P2P_SIGNALING_TYPES = new Set(['offer', 'answer', 'candidate', 'chat_message']);
-const BROADCAST_MESSAGE_TYPES = new Set(['Boss_Death', 'Ack_Sync']);
 
 function parseTaiwanDate(dateStr) {
   if (!dateStr) return null;
@@ -1200,7 +1196,6 @@ export class BossRoom {
 
     const messageType = data.type;
     const senderId = data.senderId;
-    const targetId = data.targetId;
 
     // 1. 客戶端註冊與在線狀態同步 (client_register / user_presence)
     if (messageType === 'client_register' || messageType === 'user_presence') {
@@ -1284,7 +1279,6 @@ export class BossRoom {
         console.log(`[REGISTER] 訪客/信令端點 '${senderId}' 已連線 (未登入，不列入在線成員清單)。`);
       }
 
-      // 原本的 WebRTC / Sync 邏輯保留：
       if (messageType === 'client_register') {
         // 廣播有新用戶加入
         this.broadcast(JSON.stringify({
@@ -1377,52 +1371,9 @@ export class BossRoom {
       return;
     }
 
-    // 4. 請求在線使用者名單 (request_online_users)
-    if (messageType === 'request_online_users') {
-      const users = Array.from(this.userToWs.keys());
-      const members = this.getOnlineUsersList();
-      ws.send(JSON.stringify({
-        type: "online_users_list",
-        users: users,
-        members: members,
-        senderId: "server"
-      }));
-      return;
-    }
-
-    // 4. WebRTC P2P 信令轉發 (offer / answer / candidate / chat_message)
-    if (P2P_SIGNALING_TYPES.has(messageType)) {
-      if (!targetId) {
-        console.warn(`[SIGNAL] 信令 ${messageType} 缺少 targetId`);
-        return;
-      }
-      const targetWs = this.userToWs.get(targetId);
-      if (targetWs) {
-        targetWs.send(JSON.stringify(data));
-      } else {
-        console.warn(`[SIGNAL] 目標用戶 '${targetId}' 不在線或未註冊`);
-      }
-      return;
-    }
-
-    // 客戶端不得送出全量同步：Boss 清單由伺服器維護，避免舊版網頁整份覆蓋新 Boss
-    if (messageType === 'Sync_Boss_Data') {
-      console.warn('[WS_REJECT] 忽略客戶端送來的 Sync_Boss_Data');
-      return;
-    }
-
-    // 5. 業務資料廣播 (Boss_Death / Ack_Sync)
-    if (BROADCAST_MESSAGE_TYPES.has(messageType)) {
-      // 若收到 Boss_Death，透過 processBossDeath 統一處理狀態更新、長老 Webhook 推播與廣播
-      if (messageType === 'Boss_Death') {
-        const deathInfo = data.deathInfo || data;
-        await this.processBossDeath(deathInfo, ws);
-        return;
-      }
-
-      // 廣播給所有連線 (除自身外)
-      this.broadcast(JSON.stringify(data), ws);
-      console.log(`[BCAST] 廣播訊息: ${messageType}`);
+    // Boss 資料只由後端 (Discord listener → HTTP API) 寫入，忽略客戶端送來的資料
+    if (messageType === 'Sync_Boss_Data' || messageType === 'Boss_Death') {
+      console.warn(`[WS_REJECT] 忽略客戶端送來的 ${messageType}`);
       return;
     }
 
@@ -1561,9 +1512,9 @@ export class BossRoom {
   }
 
   /**
-   * 統一處理 Boss 死亡事件 (支援外部 REST API 與 WebSocket 來源)
+   * 統一處理 Boss 死亡事件 (來源為 REST API)
    */
-  async processBossDeath(deathInfo, sourceWs = null) {
+  async processBossDeath(deathInfo) {
     // 每次處理擊殺時，自動維護並清理超過 RETENTION_DAYS 天或早於重啟時間的舊資料
     const { cutoffDate } = this.cleanupOldData();
     const killDate = parseTaiwanDate(deathInfo.death);
@@ -1674,8 +1625,8 @@ export class BossRoom {
       await this.saveMainData();
     }
 
-    // 3. 廣播給所有線上的 WebSocket 用戶端 (若由某前端發送，排除該發送端)
-    this.broadcast(JSON.stringify(broadcastMsg), sourceWs);
+    // 3. 廣播給所有線上的 WebSocket 用戶端
+    this.broadcast(JSON.stringify(broadcastMsg));
 
     // 4. 判斷是否為「魂塔長老」分類，若是則推送專屬 Discord Webhook
     const bossIdNum = Number(deathInfo.id || (matchedBoss && matchedBoss.id)) % 100000;

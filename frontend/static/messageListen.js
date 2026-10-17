@@ -1,34 +1,3 @@
-
-if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.onMessage) {
-  // 只有在確認存在時才執行註冊監聽器的操作
-  // 監聽來自 Background Script 的消息 (Step1)
-  chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
-    sendResponse({ status: "ok" });
-    // **最可靠的過濾方式：** 判斷訊息是否來自另一個 Tab 的 Content Script
-    if (sender.tab) {
-      // 訊息來自一個 Tab 中的 Content Script，這是您要忽略的廣播
-      // console.log("忽略來自 Content Script 的廣播訊息:", sender.tab.id);
-      return;
-    }
-
-    if (typeof message === 'object') {
-      // 在這裡處理接收到的消息
-      var bossData = message;
-      bossData.bossName = decodeURIComponent(message.bossName);
-      bossData.emblem = decodeURIComponent(message.emblem);
-      console.log(sender.tab, " Boss死亡資訊:", bossData);
-      updateBossData(bossData);
-
-      // 透過 webRTC 同步
-      send_Boss_Death(bossData);
-    }
-
-  });
-} else {
-  // 運行於純 Web 雲端環境時，略過 Chrome Extension 訊息監聽器註冊
-  console.log("ℹ️ [環境提示] 運行於純 Web 環境，將由 WebSocket / WebRTC 接收即時擊殺推播。");
-}
-
 // 最近擊殺快取 (用於防抖去重，避免多重管道或多監聽器導致短時間內重複跳出兩次通報)
 const _recentKillDedupeCache = new Map();
 

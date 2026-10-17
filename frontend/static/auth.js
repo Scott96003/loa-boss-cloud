@@ -330,8 +330,8 @@
             }
 
             // 同步向在線管理者與 WebSocket 註冊在線身分，獲取伺服器完整的在線名單
-            if (window.webrtcClient && typeof window.webrtcClient.registerPresence === "function") {
-                window.webrtcClient.registerPresence(user);
+            if (window.wsClient && typeof window.wsClient.registerPresence === "function") {
+                window.wsClient.registerPresence(user);
             }
             if (window.OnlineUsersManager && typeof window.OnlineUsersManager.refresh === "function") {
                 window.OnlineUsersManager.refresh();

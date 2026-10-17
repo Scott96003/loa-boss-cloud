@@ -535,8 +535,8 @@
         if (myPresenceStatus === status) return;
         myPresenceStatus = status;
 
-        if (window.webrtcClient && typeof window.webrtcClient.sendPresenceUpdate === "function") {
-            window.webrtcClient.sendPresenceUpdate(status);
+        if (window.wsClient && typeof window.wsClient.sendPresenceUpdate === "function") {
+            window.wsClient.sendPresenceUpdate(status);
         }
 
         // 同步更新自己在本機名單的狀態視覺

@@ -232,8 +232,8 @@
         }
     </style>
     <script type="text/javascript" src="./static/config.js?v=20261015_no_weekly"></script>
-    <script type="text/javascript" src="./static/auth.js?v=20261017_track_voice"></script>
-    <script type="text/javascript" src="./static/onlineUsers.js?v=20261015_presence_fix"></script>
+    <script type="text/javascript" src="./static/auth.js?v=20261017_ws_only"></script>
+    <script type="text/javascript" src="./static/onlineUsers.js?v=20261017_ws_only"></script>
     <script type="text/javascript" src="./static/init.js?v=20261017_track_voice"></script>
     <script type="text/javascript" src="./static/save.js"></script>
     <script type="text/javascript" src="./static/db.js"></script>
@@ -241,11 +241,10 @@
     <script type="text/javascript" src="./static/bossList.js?v=20261017_categories"></script>
     <script type="text/javascript" src="./static/bossTooltip.js?v=20261017_retention60"></script>
     <script type="text/javascript" src="./static/dashboard.js?v=20261017_retention60"></script>
-    <script type="text/javascript" src="./static/messageListen.js?v=20261017_track_voice"></script>
-    <script type="text/javascript" src="./static/onLoading.js?v=20261017_msg_category"></script>
+    <script type="text/javascript" src="./static/messageListen.js?v=20261017_ws_only"></script>
+    <script type="text/javascript" src="./static/onLoading.js?v=20261017_ws_only"></script>
     <script type="text/javascript" src="./static/dragonGate.js?v=20261015_dragon_worker"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc.js?v=20261017_signal_return"></script>
-    <script type="text/javascript" src="./static/webrtc/webrtc_server.js?v=20261015_sync_death"></script>
+    <script type="text/javascript" src="./static/wsClient.js?v=20261017_ws_only"></script>
 </head>
 <body>
     <!-- 主系統業務容器（已通過登入閘道驗證） -->
@@ -261,9 +260,6 @@
             <div id="dragonGateStatusContainer" style="width: 300px;margin-left: 30px; padding: 5px; border: 2px solid #5e47a9; border-radius: 8px;text-align: center;">
                 <h4 style="margin-top: 0; color: #a980ff;">龍門狀態追蹤</h4>
                 <div id="dragonGateStatusDisplay"></div>
-            </div>
-            <div id="webrtc_div">
-
             </div>
         </div>
         <div id="reboot_message"></div>

@@ -199,12 +199,6 @@ window.onload = function () {
     loadFromLocalStorage();
     setInterval(updateBossRemainingTime, 60 * 1000); // 每秒更新剩余时间
 
-    // 雲端架構下由 WebSocket 穩定傳輸，前端不再於前景顯示 P2P 除錯面板
-    const webrtcElem = document.getElementById("webrtc_div");
-    if (webrtcElem) {
-        webrtcElem.style.display = 'none';
-    }
-
     if (isMobileDevice()) {
         document.getElementById("dragonGateStatusContainer").classList.toggle('hidden');
         // 用 add 而非 toggle：DOMContentLoaded 已在窄螢幕先收起，toggle 會把它又打開

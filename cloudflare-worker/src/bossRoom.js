@@ -543,7 +543,11 @@ export class BossRoom {
     // 初始化時從持久化儲存載入歷史資料
     this.state.blockConcurrencyWhile(async () => {
       await this.loadMainData();
-      // 龍門開啟中卻沒有排程時補上，確保關閉通知會送出
+      // 尚未記錄長老區段時先記下目前區段，部署後第一次換區段就會推播
+      if (this.mainData.config?.lastElderRange === undefined) {
+        await this.checkElderRangeRefresh();
+      }
+      // 啟動時重新排程，確保長老區段更新與龍門關閉通知會送出
       await this.scheduleNextAlarm();
     });
   }
@@ -638,6 +642,11 @@ export class BossRoom {
    */
   async alarm() {
     try {
+      await this.checkElderRangeRefresh();
+    } catch (err) {
+      console.error("[ALARM] 執行長老區段檢查失敗:", err);
+    }
+    try {
       await this.checkDragonGateClose();
     } catch (err) {
       console.error("[ALARM] 執行龍門關閉檢查失敗:", err);
@@ -646,14 +655,18 @@ export class BossRoom {
   }
 
   /**
-   * 排程下一次 Alarm：只在龍門開啟中於關閉時間喚醒，推送關閉通知
+   * 排程下一次 Alarm：下一次長老區段更新時喚醒；龍門開啟中且較早關閉則於關閉時間喚醒
    */
   async scheduleNextAlarm() {
-    if (!this.mainData.gateOpenTime || !this.mainData.gateCloseTime) return;
-    const closeMs = new Date(this.mainData.gateCloseTime).getTime();
-    if (isNaN(closeMs)) return;
+    const candidates = [this.getNextElderRangeTime()];
+    if (this.mainData.gateOpenTime && this.mainData.gateCloseTime) {
+      const closeMs = new Date(this.mainData.gateCloseTime).getTime();
+      if (!isNaN(closeMs)) candidates.push(Math.max(closeMs, Date.now() + 1000));
+    }
+    const next = candidates.filter(t => t !== null);
+    if (next.length === 0) return;
     try {
-      await this.storage.setAlarm(Math.max(closeMs, Date.now() + 1000));
+      await this.storage.setAlarm(Math.min(...next));
     } catch (e) {
       console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
     }
@@ -1422,9 +1435,68 @@ export class BossRoom {
   }
 
   /**
-   * 發送魂塔長老專屬的 Discord Webhook 通知
+   * 魂塔長老擊殺時推送 Discord Webhook 通知
    */
   async sendElderDiscordWebhook(deathInfo, matchedBoss) {
+    const isActive = Number(deathInfo.id) > 100000 || Boolean(deathInfo.isActive);
+    const bossName = (matchedBoss && matchedBoss.bossName) || deathInfo.bossName || "長老";
+    const emblem = (matchedBoss && matchedBoss.emblem) || deathInfo.emblem || "未知血盟";
+    const deathTime = deathInfo.death || "";
+    const titleMsg = `***[${isActive ? '活動 ' : ''}${bossName}] 被 ${emblem} 擊殺 ${deathTime}***\n`;
+    await this.postElderWebhook(titleMsg, new Date(), `擊殺推播 (Boss: ${bossName})`);
+  }
+
+  /**
+   * 長老區段更新時推送 Discord Webhook 通知 (由 Alarm 呼叫)
+   * 上次推播的區段記錄在 config.lastElderRange，區段有變才推播；第一次只記錄、不推播
+   */
+  async checkElderRangeRefresh(now = new Date()) {
+    const elderBosses = this.getElderBosses();
+    if (elderBosses.length === 0) return { sent: false, reason: "no_data" };
+
+    const rebootTime = this.getRebootTimeOrDefault(now);
+    elderBosses.forEach(boss => refreshBossComputedFields(boss, rebootTime, now));
+    // 區段簽章：所有長老區段去重排序後的字串，例如 "13~20"
+    const range = [...new Set(elderBosses.map(b => b.重生間隔))].sort().join("|");
+
+    if (!this.mainData.config) this.mainData.config = {};
+    const lastRange = this.mainData.config.lastElderRange;
+    if (lastRange === range) return { sent: false, range };
+
+    this.mainData.config.lastElderRange = range;
+    await this.saveMainData();
+    if (lastRange === undefined) return { sent: false, initialized: true, range };
+
+    console.log(`[ELDER_RANGE] 長老區段更新: ${lastRange} -> ${range}`);
+    await this.postElderWebhook("*** 重生輪迴時間刷新 ***\n", now, `區段更新推播 (${range})`);
+    return { sent: true, range };
+  }
+
+  /**
+   * 下一次長老區段更新的時間 (+5 秒，確保已進入新區段)
+   */
+  getNextElderRangeTime(now = new Date()) {
+    const times = this.getElderBosses()
+      .map(b => getSpawnTime(now, parseFloat(b.respawnTime) || 1).getTime())
+      .filter(t => t > now.getTime());
+    return times.length > 0 ? Math.min(...times) + 5 * 1000 : null;
+  }
+
+  getElderBosses() {
+    return (this.mainData.bossListData || [])
+      .filter(item => ELDER_BOSS_IDS.includes(Number(item.id) % 100000));
+  }
+
+  getRebootTimeOrDefault(now = new Date()) {
+    return (this.mainData.config && this.mainData.config.rebootTime)
+      ? this.mainData.config.rebootTime
+      : new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+  }
+
+  /**
+   * 組出長老 8 隻 Boss 的現況表格並推送到 DISCORD_WEBHOOK_ELDER
+   */
+  async postElderWebhook(titleMsg, now, logLabel) {
     const webhookUrl = this.env.DISCORD_WEBHOOK_ELDER;
     if (!webhookUrl) {
       console.log("ℹ️ [WEBHOOK] 未設定 DISCORD_WEBHOOK_ELDER 環境變數，略過長老 Webhook 推送。");
@@ -1432,56 +1504,36 @@ export class BossRoom {
     }
 
     try {
-      const isActive = Number(deathInfo.id) > 100000 || Boolean(deathInfo.isActive);
-      const bossName = (matchedBoss && matchedBoss.bossName) || deathInfo.bossName || "長老";
-      const emblem = (matchedBoss && matchedBoss.emblem) || deathInfo.emblem || "未知血盟";
-      const deathTime = deathInfo.death || "";
-
-      // 1. 擊殺標題
-      const titleMsg = `***[${isActive ? '活動 ' : ''}${bossName}] 被 ${emblem} 擊殺 ${deathTime}***\n`;
-
-      const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
-        ? this.mainData.config.rebootTime
-        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
-
-      const now = new Date();
-
-      // 2. 匯總長老分類下的 8 隻 Boss 現狀，並即時動態重新計算各長老的最新區段與存活數量
-      const elderBosses = (this.mainData.bossListData || [])
-        .filter(item => ELDER_BOSS_IDS.includes(Number(item.id) % 100000));
-
-      elderBosses.forEach(boss => {
-        refreshBossComputedFields(boss, rebootTime, now);
-      });
+      const rebootTime = this.getRebootTimeOrDefault(now);
+      const elderBosses = this.getElderBosses();
+      // 即時重新計算各長老的最新區段與存活數量
+      elderBosses.forEach(boss => refreshBossComputedFields(boss, rebootTime, now));
 
       // 排序：剩餘數量多者優先，數量相同時距離上次死亡最久者優先
       const elderData = elderBosses
         .map(item => buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, 7), rebootTime))
         .sort((a, b) => (Number(b.count) || 0) - (Number(a.count) || 0) || b.elapsedMs - a.elapsedMs);
 
-      // 3. 格式化等寬表格與活動統計字串
       const tableMsg = formatTableForDiscord(elderData, true);
       const activeMsg = `\n> 活動出現次數: ${calculateActiveStats(this.mainData.bossListData, ELDER_BOSS_IDS)}`;
-      const fullContent = titleMsg + tableMsg + activeMsg;
 
-      // 4. 發送至 Discord Webhook
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          content: fullContent,
+          content: titleMsg + tableMsg + activeMsg,
           username: "魂塔長老監控"
         })
       });
 
       if (response.ok) {
-        console.log(`✅ [WEBHOOK] 魂塔長老擊殺推播已發送至 Discord！(Boss: ${bossName})`);
+        console.log(`✅ [WEBHOOK] 魂塔長老${logLabel}已發送至 Discord！`);
       } else {
         const errorText = await response.text();
-        console.error(`❌ [WEBHOOK] 發送失敗 (HTTP ${response.status}): ${errorText}`);
+        console.error(`❌ [WEBHOOK] 魂塔長老${logLabel}發送失敗 (HTTP ${response.status}): ${errorText}`);
       }
     } catch (err) {
-      console.error("❌ [WEBHOOK] 連線異常:", err.message);
+      console.error(`❌ [WEBHOOK] 魂塔長老${logLabel}連線異常:`, err.message);
     }
   }
 

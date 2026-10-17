@@ -153,7 +153,7 @@ http://localhost:8090/index.html
 
 | Secret 名稱 | 用途 |
 | --- | --- |
-| `DISCORD_WEBHOOK_ELDER` | 魂塔長老擊殺 |
+| `DISCORD_WEBHOOK_ELDER` | 魂塔長老擊殺、長老區段更新 |
 | `DISCORD_WEBHOOK_DRAGON` | 龍門開啟／關閉 |
 
 沒設定的 Webhook 會直接略過，不影響其他功能。
@@ -189,7 +189,7 @@ new_sqlite_classes = ["BossRoom"]
 
 - `new_sqlite_classes` 代表使用 **SQLite 型 Durable Object**，這是 Workers 免費方案唯一可用的 Durable Object 類型，**請勿改成 `new_classes`**。
 - `[[migrations]]` 的 `tag` 一旦部署過就不要修改或刪除；未來若新增／更名 DO 類別，要追加新的 migration（`v2`…）。
-- 龍門關閉通知由 Durable Object Alarm 處理，**不需要** Cron Trigger。
+- 長老區段更新與龍門關閉通知由 Durable Object Alarm 處理，**不需要** Cron Trigger。Alarm 只在長老換區段（每 7 小時）或龍門關閉時喚醒，上次推播的區段記錄在 `config.lastElderRange`。
 
 ### 5.3 設定 Secrets
 
@@ -719,7 +719,7 @@ npx wrangler tail --config wrangler.toml          # 即時查看正式環境 log
 | `AUTH_JWT_SECRET` | ✅ | 簽發登入憑證用的密鑰 |
 | `DISCORD_TARGET_GUILD_ID` | | 目標伺服器 ID，預設 `1198482702932914277` |
 | `DISCORD_TARGET_CHANNEL_ID` | | 目標頻道 ID，預設 `1426495371332292608` |
-| `DISCORD_WEBHOOK_ELDER` | | 魂塔長老擊殺推播 |
+| `DISCORD_WEBHOOK_ELDER` | | 魂塔長老擊殺與區段更新推播 |
 | `DISCORD_WEBHOOK_DRAGON` | | 龍門開啟／關閉推播 |
 
 ### discord-listener（`.env`）

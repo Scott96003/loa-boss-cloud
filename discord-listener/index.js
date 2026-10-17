@@ -70,8 +70,8 @@ function shouldSkipBoss(localName, id, bossName) {
     return true;
   }
 
-  // 2. 傲慢之塔 (非樓層)：只允許特定 ID , 46220 146220 是烏格奴斯, 46271 是非30F的吸血鬼
-  if (localName === "傲慢之塔 Tower of Insolence" && ![46220, 146220].includes(numId)) {
+  // 2. 傲慢之塔 (非樓層)：只允許特定 ID , 46220 146220 是烏格奴斯, 46271 146271 是奧塔監視者 (非30F的吸血鬼)
+  if (localName === "傲慢之塔 Tower of Insolence" && ![46220, 146220, 46271, 146271].includes(numId)) {
     return true;
   }
 

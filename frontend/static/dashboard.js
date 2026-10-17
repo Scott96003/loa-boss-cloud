@@ -206,7 +206,8 @@ function trackBoss(btn) {
     trackBossNames.push(bossName);
     btn.textContent = "停止追蹤";
   }
-  saveToLocalStorage();
+  // 追蹤清單立即寫入，不走 30 秒 debounce，避免 reload 前尚未存檔而遺失
+  localStorage.setItem("trackBossNames", JSON.stringify(trackBossNames));
 }
 
 /**

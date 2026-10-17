@@ -309,6 +309,11 @@
         const main = document.getElementById("mainAppContent");
         if (main) main.style.display = "block";
 
+        // 驗證通過後才顯示系統公告
+        if (typeof window.checkAndShowAnnouncement === "function") {
+            window.checkAndShowAnnouncement();
+        }
+
         const widget = document.getElementById("discordUserStatusWidget");
         if (widget && user) {
             widget.style.display = "flex";

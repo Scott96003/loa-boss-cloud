@@ -314,13 +314,14 @@ function clearBossData(id) {
 
 /**
  * 檢查並顯示公告，若已看過相同 ID 的公告則不再顯示
+ * 由 auth.js 在 Discord 驗證通過後呼叫
  */
 function checkAndShowAnnouncement() {
-    const currentAnnouncementId = "20231101_v1"; // 每次更新公告內容時請更改此 ID
+    const currentAnnouncementId = "20261017_track_voice"; // 每次更新公告內容時請更改此 ID
     const lastSeenId = localStorage.getItem("lastSeenAnnouncementId");
 
     if (lastSeenId !== currentAnnouncementId) {
-        const announcementMessage = "【系統公告】\n\n歡迎使用 Boss 計時器！\n已增加追蹤清單功能。\n若有任何使用問題，請聯繫管理員。";
+        const announcementMessage = "【系統公告】\n\n調整語音提示只在有追蹤的目標。\n請將需要語音提醒的 Boss 加入追蹤清單。\n若有任何使用問題，請聯繫管理員。";
 
         // 使用延遲確保頁面渲染完成後再彈出
         setTimeout(() => {
@@ -329,6 +330,3 @@ function checkAndShowAnnouncement() {
         }, 1000);
     }
 }
-
-// 初始化時執行公告檢查
-checkAndShowAnnouncement();

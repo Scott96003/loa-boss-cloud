@@ -32,7 +32,9 @@ const CAMP_BOSS_IDS = [81082, 45685, 45674, 45625, 45753];
 const TOWER_BOSS_IDS = [45606, 45653, 45654, 45618, 45672, 45673];
 const TOWER_ALL_BOSS_IDS = [45513, 45547, 45606, 45650, 45652, 45653, 45654, 45618, 45672, 45673];
 const WILD_BOSS_IDS = [45614, 45801, 46142, 46141, 99085, 99086, 99065, 45863];
-const ALL_DC_CHECK_BOSS_IDS = [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_ALL_BOSS_IDS, ...WILD_BOSS_IDS];
+// 奧塔監視者：每輪隨機刷 N 隻 (countMode: "unfixed")，只統計本輪已擊殺數
+const TOWER_WATCHER_BOSS_IDS = [46271];
+const ALL_DC_CHECK_BOSS_IDS = [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_ALL_BOSS_IDS, ...WILD_BOSS_IDS, ...TOWER_WATCHER_BOSS_IDS];
 
 // 龍門：擊殺任一隻龍後開啟 3 小時 (與前端 dragonGate.js 相同)
 const DRAGON_GATE_BOSS_IDS = [91516, 91202, 91605];
@@ -93,6 +95,13 @@ function getBossCount(obj) {
 }
 
 /**
+ * 是否為每輪數量不固定的 Boss (無法計算剩餘數量)
+ */
+function isUnfixedCount(obj) {
+  return obj.countMode === "unfixed";
+}
+
+/**
  * 依據伺服器重開機時間計算 Boss 的時間區段與存活數量 (findLostBoss)
  */
 function findLostBoss(bossData, rebootTimeInput, now = new Date()) {
@@ -120,6 +129,12 @@ function findLostBoss(bossData, rebootTimeInput, now = new Date()) {
   });
 
   segments.sort((a, b) => b.start.getTime() - a.start.getTime());
+
+  // 數量不固定：無法推算剩餘數量，改統計本輪 (最新區段) 已擊殺數
+  if (isUnfixedCount(bossData)) {
+    const killedThisRound = segments.length > 0 ? segments[0].deathList.length : 0;
+    return { rebornCount: 0, killedThisRound, segments };
+  }
 
   const dieCount = matchingTimes.length;
   const bossCount = getBossCount(bossData);
@@ -253,7 +268,9 @@ function buildDiscordTableRow(item, now, spawnTime, rebootTime) {
   const sinceDate = parseTaiwanDate(latestDeath) || parseTaiwanDate(rebootTime);
   const elapsed = sinceDate ? Math.max(0, now.getTime() - sinceDate.getTime()) : 0;
   return {
-    count: item.respawnCount !== undefined ? item.respawnCount : 0,
+    count: isUnfixedCount(item)
+      ? `已擊殺 ${(item.result && item.result.killedThisRound) || 0}`
+      : (item.respawnCount !== undefined ? item.respawnCount : 0),
     name: item.bossName,
     spawnTime,
     guild: item.emblem === 'Il一雲門集團一II' ? '雲門' : (item.emblem || '未知'),
@@ -1646,6 +1663,7 @@ export class BossRoom {
         { name: "奧塔", checkList: TOWER_ALL_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER },
         { name: "陣營", checkList: CAMP_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_CAMP },
         { name: "野外", checkList: WILD_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_WILD },
+        { name: "奧塔監視者", checkList: TOWER_WATCHER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER_WATCHER },
         { name: "all", checkList: [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_BOSS_IDS, ...WILD_BOSS_IDS], webhookUrl: this.env.DISCORD_WEBHOOK_ALL }
       ];
 

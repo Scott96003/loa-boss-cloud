@@ -157,6 +157,7 @@ http://localhost:8090/index.html
 | `DISCORD_WEBHOOK_TOWER` | 塔類 Boss |
 | `DISCORD_WEBHOOK_CAMP` | 營地類 Boss |
 | `DISCORD_WEBHOOK_WILD` | 野外類 Boss |
+| `DISCORD_WEBHOOK_TOWER_WATCHER` | 奧塔監視者類 Boss |
 | `DISCORD_WEBHOOK_ALL` | 全部 Boss |
 | `DISCORD_WEBHOOK_DRAGON` | 龍門開啟／關閉 |
 
@@ -215,6 +216,7 @@ npx wrangler secret put DISCORD_WEBHOOK_ELDER --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_TOWER --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_CAMP --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_WILD --config wrangler.toml
+npx wrangler secret put DISCORD_WEBHOOK_TOWER_WATCHER --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_ALL --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_DRAGON --config wrangler.toml
 ```
@@ -714,6 +716,7 @@ npx wrangler tail --config wrangler.toml          # 即時查看正式環境 log
 | `DISCORD_WEBHOOK_TOWER` | | 塔類推播 |
 | `DISCORD_WEBHOOK_CAMP` | | 營地類推播 |
 | `DISCORD_WEBHOOK_WILD` | | 野外類推播 |
+| `DISCORD_WEBHOOK_TOWER_WATCHER` | | 奧塔監視者類推播 |
 | `DISCORD_WEBHOOK_ALL` | | 全部 Boss 推播 |
 | `DISCORD_WEBHOOK_DRAGON` | | 龍門開啟／關閉推播 |
 

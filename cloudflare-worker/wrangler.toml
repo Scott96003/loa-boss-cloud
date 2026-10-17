@@ -20,5 +20,6 @@ new_sqlite_classes = ["BossRoom"]
 #   wrangler secret put DISCORD_WEBHOOK_TOWER
 #   wrangler secret put DISCORD_WEBHOOK_CAMP
 #   wrangler secret put DISCORD_WEBHOOK_WILD
+#   wrangler secret put DISCORD_WEBHOOK_TOWER_WATCHER
 #   wrangler secret put DISCORD_WEBHOOK_ALL
 #   wrangler secret put DISCORD_WEBHOOK_DRAGON   (龍門開啟／關閉通知)

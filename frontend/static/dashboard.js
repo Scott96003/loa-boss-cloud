@@ -65,6 +65,13 @@ const getBossCount = (obj) => {
 };
 
 /**
+ * 是否為每輪數量不固定的 Boss (無法計算剩餘數目，改顯示本輪已擊殺數)
+ * @param {object} obj - boss 物件
+ * @returns {boolean}
+ */
+const isUnfixedCount = (obj) => obj.countMode === "unfixed";
+
+/**
  * 將 boss 資料新增為表格的一行
  * @param {object} data - boss 資料
  */
@@ -427,7 +434,9 @@ function updateBossRemainingTime(bossID = 0) {
     bossData.respawnCount = bossData.result.rebornCount
     const respawnCountCell = row.querySelector('[data-col-id="respawn-count"]');
     if (respawnCountCell) {
-      respawnCountCell.innerText = bossData.respawnCount;
+      respawnCountCell.innerText = isUnfixedCount(bossData)
+        ? "已擊殺 " + (bossData.result.killedThisRound || 0)
+        : bossData.respawnCount;
       respawnCountCell.style.textAlign = 'center';
       respawnCountCell.style.verticalAlign = 'middle';
     }
@@ -538,6 +547,12 @@ function findLostBoss(bossData) {
   let matchingTimes = bossData.deathList.filter(dl => new Date(dl.death) > config.rebootTime);
 
   segments.sort((a, b) => b.start - a.start);
+
+  // 數量不固定：無法推算剩餘數目，改統計本輪 (最新區段) 已擊殺數
+  if (isUnfixedCount(bossData)) {
+    const killedThisRound = segments.length > 0 ? segments[0].deathList.length : 0;
+    return { rebornCount: 0, killedThisRound: killedThisRound, segments: segments };
+  }
 
   var dieCount = matchingTimes.length
   var bossCount = getBossCount(bossData)

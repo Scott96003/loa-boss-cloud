@@ -107,13 +107,7 @@ function addBossTR(data) {
         break;
       case 'action':
         cellContent = "<button id='delete_" + data.bossName + "'>刪除</button>";
-        var buttonName = "";
-        if (trackBossNames.includes(data.bossName)) {
-          buttonName = "停止追蹤";
-        } else {
-          buttonName = "追蹤";
-        }
-        cellContent += "<button class='trackBtn' id='track_" + encodeURIComponent(data.bossName) + "'>" + buttonName + "</button>";
+        cellContent += "<button class='trackBtn' id='track_" + encodeURIComponent(data.bossName) + "'></button>";
         // 手機卡片模式用：開啟死亡歷史抽屜
         cellContent += "<button class='historyBtn' title='死亡歷史'>歷史</button>";
         // 手機卡片模式用：展開次要欄位與刪除按鈕
@@ -174,6 +168,7 @@ function addBossTR(data) {
       }
       var trackBtn = document.getElementById("track_" + encodeURIComponent(data.bossName));
       if (trackBtn) {
+        applyTrackState(trackBtn, trackBossNames.includes(data.bossName));
         trackBtn.addEventListener("click", function () {
           trackBoss(this);
         });
@@ -202,15 +197,38 @@ function addBossTR(data) {
 function trackBoss(btn) {
   console.log('追蹤 boss');
   var bossName = decodeURIComponent(btn.id.replace("track_", ""));
-  if (trackBossNames.includes(bossName)) {
-    trackBossNames.splice(trackBossNames.indexOf(bossName), 1);
-    btn.textContent = "追蹤";
-  } else {
+  var tracked = !trackBossNames.includes(bossName);
+  if (tracked) {
     trackBossNames.push(bossName);
-    btn.textContent = "停止追蹤";
+  } else {
+    trackBossNames.splice(trackBossNames.indexOf(bossName), 1);
   }
+  applyTrackState(btn, tracked);
+  updateTrackListCount();
+  showfloatingMessage(tracked
+    ? "🔔 已追蹤「" + bossName + "」，擊殺時會語音播報"
+    : "🔕 已取消追蹤「" + bossName + "」，不再語音播報");
   // 追蹤清單立即寫入，不走 30 秒 debounce，避免 reload 前尚未存檔而遺失
   localStorage.setItem("trackBossNames", JSON.stringify(trackBossNames));
+}
+
+/**
+ * 同步追蹤按鈕與所在列的外觀：追蹤 = 開啟語音播報
+ */
+function applyTrackState(btn, tracked) {
+  btn.textContent = tracked ? "🔔 播報中" : "🔕 追蹤";
+  btn.title = tracked ? "已追蹤：擊殺時語音播報，點擊取消" : "未追蹤：不會語音播報，點擊追蹤以開啟播報";
+  btn.classList.toggle("is-tracked", tracked);
+  var row = btn.closest("tr");
+  if (row) row.classList.toggle("tracked", tracked);
+}
+
+/**
+ * 更新「追蹤清單」篩選按鈕上的數量
+ */
+function updateTrackListCount() {
+  var countEl = document.getElementById("trackCount");
+  if (countEl) countEl.textContent = trackBossNames.length;
 }
 
 /**

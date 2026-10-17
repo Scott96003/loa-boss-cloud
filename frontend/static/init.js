@@ -254,6 +254,7 @@ function reDrawBossList() {
 function initializeTrackBossNames() {
     const storedTrackBossNames = localStorage.getItem("trackBossNames");
     trackBossNames = storedTrackBossNames ? JSON.parse(storedTrackBossNames) : [];
+    updateTrackListCount();
 }
 
 /**

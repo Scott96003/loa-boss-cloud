@@ -324,9 +324,27 @@ button:active {
     border-color: var(--danger);
 }
 
+#bossList td button.trackBtn {
+    color: var(--text-faint);
+}
+
 #bossList td button.trackBtn:hover {
-    background: rgba(88, 101, 242, 0.18);
-    border-color: var(--primary);
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.55);
+    color: #fbbf24;
+}
+
+/* 已追蹤 = 語音播報中，與「追蹤清單」按鈕同色系 */
+#bossList td button.trackBtn.is-tracked {
+    background: rgba(245, 158, 11, 0.18);
+    border-color: #f59e0b;
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+#bossList tbody tr.tracked td[data-col-key="bossName"]::after {
+    content: " 🔔";
+    font-size: 0.85em;
 }
 
 /* 重生進度列（由 dashboard.js 設定在 tr 上） */

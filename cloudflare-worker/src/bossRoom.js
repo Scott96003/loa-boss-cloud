@@ -427,7 +427,8 @@ function calculateActiveStats(bossListData, ids) {
 }
 
 // 由 defaultBossList.json 維護的設定欄位，啟動時會同步到存檔 (死亡紀錄等執行期資料不受影響)
-const BOSS_DEFINITION_FIELDS = ["bossName", "respawnTime", "bossCount", "countMode"];
+// areas：受限區域 (例如傲慢之塔各樓層)，discord-listener 在受限區域內只接受 areas 列有該區域的 Boss
+const BOSS_DEFINITION_FIELDS = ["bossName", "respawnTime", "bossCount", "countMode", "areas"];
 
 /**
  * 依 defaultBossList 同步存檔清單 (依 id 比對)
@@ -455,8 +456,8 @@ export function syncBossListWithDefaults(bossListData, defaults) {
           delete saved[field];
           changed = true;
         }
-      } else if (saved[field] !== def[field]) {
-        saved[field] = def[field];
+      } else if (JSON.stringify(saved[field]) !== JSON.stringify(def[field])) {
+        saved[field] = structuredClone(def[field]);
         changed = true;
       }
     });

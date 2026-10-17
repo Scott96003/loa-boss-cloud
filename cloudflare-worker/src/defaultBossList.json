@@ -3,6 +3,9 @@
     "id": "46220",
     "bossName": "烏格奴斯",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
     "bossCount": 4,
     "death": "2025-10-31 11:33",
     "deathList": [],
@@ -336,6 +339,9 @@
     "id": "45606",
     "bossName": "恐怖的吸血鬼",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 30樓 Tower of Insolence 30F"
+    ],
     "death": "2025-10-31 05:43",
     "deathList": [],
     "emblem": "私服亂源",
@@ -402,6 +408,9 @@
     "id": "45672",
     "bossName": "不滅的巫妖",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 90樓 Tower of Insolence 90F"
+    ],
     "death": "2025-10-31 07:03",
     "deathList": [],
     "emblem": "Il一雲門集團一II",
@@ -424,6 +433,9 @@
     "id": "45513",
     "bossName": "扭曲的潔尼斯女王",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 10樓 Tower of Insolence 10F"
+    ],
     "death": "2025-10-31 07:16",
     "deathList": [],
     "emblem": "Haven",
@@ -468,6 +480,9 @@
     "id": "45618",
     "bossName": "闇黑的騎士范德",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 80樓 Tower of Insolence 80F"
+    ],
     "death": "2025-10-31 08:24",
     "deathList": [],
     "emblem": "Il一雲門集團一II",
@@ -490,6 +505,9 @@
     "id": "45653",
     "bossName": "不死的木乃伊王",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 60樓 Tower of Insolence 60F"
+    ],
     "death": "2025-10-31 08:28",
     "deathList": [],
     "emblem": "Il一雲門集團一II",
@@ -512,6 +530,9 @@
     "id": "45652",
     "bossName": "地獄的黑豹",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 50樓 Tower of Insolence 50F"
+    ],
     "death": "2025-10-31 09:01",
     "deathList": [],
     "emblem": "Il一雲門集團一II",
@@ -1150,6 +1171,9 @@
     "id": "45650",
     "bossName": "死亡的殭屍王",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 40樓 Tower of Insolence 40F"
+    ],
     "death": "2025-10-31 08:49",
     "deathList": [],
     "emblem": "私服亂源",
@@ -1194,6 +1218,9 @@
     "id": "45654",
     "bossName": "冷酷的艾莉絲",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 70樓 Tower of Insolence 70F"
+    ],
     "death": "2025-10-31 10:06",
     "deathList": [],
     "emblem": "不要申請",
@@ -1348,6 +1375,9 @@
     "id": "45547",
     "bossName": "不幸的幻象眼魔",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 20樓 Tower of Insolence 20F"
+    ],
     "death": "2025-10-31 11:41",
     "deathList": [],
     "emblem": "私服亂源",
@@ -1370,6 +1400,9 @@
     "id": "46271",
     "bossName": "恐怖的吸血鬼-監視者",
     "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
     "countMode": "unfixed",
     "death": "2025-10-31 05:00",
     "deathList": [],

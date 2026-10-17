@@ -26,6 +26,8 @@ let latestRebootTime = null;
 
 // Boss 清單上的 id (含活動版 id + 100000)；尚未載入時為 null，此時不在本地過濾，交由 Worker 判斷
 let managedBossIds = null;
+// 受限區域 -> 允許的 Boss id (含活動版)，由 Boss 清單的 areas 欄位產生；尚未載入時為 null
+let restrictedAreas = null;
 const MANAGED_BOSS_REFRESH_MS = 10 * 60 * 1000;
 
 if (!DISCORD_USER_TOKEN || DISCORD_USER_TOKEN === "your_discord_user_token_here") {
@@ -70,25 +72,8 @@ function shouldSkipBoss(localName, id, bossName) {
     return true;
   }
 
-  // 2. 傲慢之塔 (非樓層)：只允許特定 ID , 46220 146220 是烏格奴斯, 46271 146271 是奧塔監視者 (非30F的吸血鬼)
-  if (localName === "傲慢之塔 Tower of Insolence" && ![46220, 146220, 46271, 146271].includes(numId)) {
-    return true;
-  }
-
-  // 3. 傲慢之塔各樓層百鬼活動過濾：只有特定樓層且 ID 不符合時才跳過
-  const TOI_EXCEPTIONS = {
-    "傲慢之塔 10樓 Tower of Insolence 10F": [45513, 145513],
-    "傲慢之塔 20樓 Tower of Insolence 20F": [45547, 145547],
-    "傲慢之塔 30樓 Tower of Insolence 30F": [45606, 145606],
-    "傲慢之塔 40樓 Tower of Insolence 40F": [45650, 145650],
-    "傲慢之塔 50樓 Tower of Insolence 50F": [45652, 145652],
-    "傲慢之塔 60樓 Tower of Insolence 60F": [45653, 145653],
-    "傲慢之塔 70樓 Tower of Insolence 70F": [45654, 145654],
-    "傲慢之塔 80樓 Tower of Insolence 80F": [45618, 145618],
-    "傲慢之塔 90樓 Tower of Insolence 90F": [45672, 145672],
-  };
-
-  if (TOI_EXCEPTIONS[localName] && !TOI_EXCEPTIONS[localName].includes(numId)) {
+  // 2. 受限區域 (例如傲慢之塔各樓層的百鬼活動)：只接受 Boss 清單 areas 列有該區域的 Boss
+  if (restrictedAreas && restrictedAreas.has(localName) && !restrictedAreas.get(localName).has(numId)) {
     return true;
   }
 
@@ -266,15 +251,21 @@ function getJson(targetUrl, headers = {}) {
 
 function setManagedBossIds(bossListData) {
   const ids = new Set();
+  const areas = new Map();
   bossListData.forEach(b => {
     const id = Number(b.id);
     if (id) {
       ids.add(id);
       ids.add(id + 100000);
+      (Array.isArray(b.areas) ? b.areas : []).forEach(area => {
+        if (!areas.has(area)) areas.set(area, new Set());
+        areas.get(area).add(id).add(id + 100000);
+      });
     }
   });
   if (ids.size > 0) {
     managedBossIds = ids;
+    restrictedAreas = areas;
   }
 }
 
@@ -746,6 +737,6 @@ function reconnect() {
   }, 5000);
 }
 
-// 啟動連線
-connectGateway();
+// 先載入 Boss 清單 (含受限區域規則)，再連線並回溯補抓擊殺
+refreshManagedBossIds().finally(connectGateway);
 setInterval(refreshManagedBossIds, MANAGED_BOSS_REFRESH_MS);

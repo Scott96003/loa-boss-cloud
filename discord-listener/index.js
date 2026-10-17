@@ -21,6 +21,10 @@ const REBOOT_KEYWORD = process.env.REBOOT_KEYWORD || "伺服器重啟完成，�
 const WORKER_API_URL = process.env.WORKER_API_URL || "http://localhost:8787/api/boss-death";
 const WORKER_REBOOT_URL = WORKER_API_URL.replace("/api/boss-death", "/api/server-reboot");
 const KEYWORD = process.env.KEYWORD || "LoA363 頭目擊殺記錄 Boss Kills";
+// 完整回溯：預設只補抓「雲端最後一筆擊殺」之後的訊息；加 --full-sync 或 FULL_SYNC=1 則回溯到重啟時間 / 7 天前
+const FULL_SYNC = process.argv.includes("--full-sync") || ["1", "true"].includes(String(process.env.FULL_SYNC).toLowerCase());
+// 增量回溯時往前多抓的緩衝時間，避免 Discord 訊息延遲或同分鐘擊殺被漏掉
+const INCREMENTAL_SYNC_MARGIN_MS = 10 * 60 * 1000;
 
 let latestRebootTime = null;
 
@@ -316,10 +320,26 @@ async function sendRebootToCloudflareWorker(rebootTime, messageContent) {
   }
 }
 
+// 找出雲端資料中最晚的一筆擊殺時間 (death 與 deathList 皆列入)
+function getLatestCloudKillTime(cloudData) {
+  if (!cloudData || !Array.isArray(cloudData.bossListData)) return null;
+  let latest = null;
+  const consider = (death) => {
+    if (!death || death === "未知") return;
+    const t = parseTaiwanDate(death);
+    if (t && t.getTime() <= Date.now() && (!latest || t > latest)) latest = t;
+  };
+  cloudData.bossListData.forEach(b => {
+    consider(b.death);
+    if (Array.isArray(b.deathList)) b.deathList.forEach(dl => consider(dl.death));
+  });
+  return latest;
+}
+
 /**
  * 啟動時自動執行：
  * 1. 至重啟頻道找到最後一筆重啟公告，將此時間點之前的擊殺全數自雲端刪除
- * 2. 自擊殺頻道從當前時間往回推直到重啟時間，檢查是否有缺漏的擊殺並逐筆補齊推播
+ * 2. 自擊殺頻道從當前時間往回推，直到雲端最後一筆擊殺 (預設) 或重啟時間 / 7 天前 (--full-sync)，檢查是否有缺漏的擊殺並逐筆補齊推播
  */
 async function fetchAndSyncHistoricalMessages() {
   try {
@@ -405,6 +425,27 @@ async function fetchAndSyncHistoricalMessages() {
       console.log(`⏱️ [截止條件] 重開機時間 (${cutoffThreshold.toISOString()}) 晚於 7 天前，採用「重開機時間」為回溯終點。`);
     } else {
       console.log(`⏱️ [截止條件] 7 天前 (${cutoffThreshold.toISOString()}) 晚於重開機時間，採用「7 天前」為回溯終點。`);
+    }
+
+    // 增量回溯：若雲端已有擊殺紀錄，只需從雲端最後一筆擊殺 (減去緩衝) 開始補抓
+    if (FULL_SYNC) {
+      console.log(`ℹ️ [截止條件] 已指定完整回溯 (--full-sync / FULL_SYNC=1)，不使用雲端最後擊殺時間。`);
+    } else {
+      try {
+        const bossDataApiUrl = WORKER_API_URL.replace("/api/boss-death", "/api/boss-data");
+        const latestCloudKill = getLatestCloudKillTime(await getJson(bossDataApiUrl));
+        if (latestCloudKill) {
+          const incrementalCutoff = new Date(latestCloudKill.getTime() - INCREMENTAL_SYNC_MARGIN_MS);
+          if (incrementalCutoff > cutoffThreshold) {
+            cutoffThreshold = incrementalCutoff;
+            console.log(`⏱️ [截止條件] 雲端最後一筆擊殺為 ${latestCloudKill.toISOString()}，改為只回溯至 ${cutoffThreshold.toISOString()} (含 ${INCREMENTAL_SYNC_MARGIN_MS / 60000} 分鐘緩衝)。`);
+          }
+        } else {
+          console.log(`ℹ️ [截止條件] 雲端尚無擊殺紀錄，維持原回溯終點。`);
+        }
+      } catch (e) {
+        console.warn(`⚠️ [截止條件] 無法取得雲端最後擊殺時間，維持原回溯終點: ${e.message}`);
+      }
     }
 
     console.log(`🔍 [步驟 2/3: 區間採集] 正在從擊殺頻道 (${TARGET_CHANNEL_ID}) 當前時間往回推，直到截止時間 (${cutoffThreshold.toISOString()})...`);

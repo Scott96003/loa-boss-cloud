@@ -56,6 +56,12 @@
    ```
    看到 `🎉 [驗證成功]` 與 `🎯 [監聽中]` 即代表成功掛機！當頻道有 Boss 死亡訊息時，終端機會即時印出解析並自動推送給 Worker。
 
+   啟動時預設只補抓「雲端最後一筆擊殺 (往前 10 分鐘緩衝)」之後的擊殺訊息。若需要完整回溯到重啟時間 / 7 天前，請改用：
+   ```bash
+   npm run start:full
+   ```
+   或設定環境變數 `FULL_SYNC=1` (例如 Fly.io：`fly secrets set FULL_SYNC=1`，用完記得 `fly secrets unset FULL_SYNC`)。
+
 ---
 
 ## ☁️ 免費 7x24 雲端部署（本機完全關機）

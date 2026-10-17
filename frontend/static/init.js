@@ -269,37 +269,10 @@ async function loadFromLocalStorage() {
     initializeTrackBossNames()
 
     // 步驟 2: 載入並處理核心 Boss 資料
-    const maxDeathTime = await loadAndInitializeBossData();
+    await loadAndInitializeBossData();
 
     // 步驟 3: 刷新介面
     refresh(); // 執行刷新數據的函數
-
-    // 步驟 4: 判斷是否需要獲取歷史數據（僅限 Chrome Extension 環境，純 Web 環境已由 Worker 同步）
-    if (typeof chrome !== 'undefined' && chrome.tabs && chrome.tabs.query) {
-        if (maxDeathTime) {
-            console.log("最後死亡時間:", maxDeathTime.toLocaleString());
-
-            const sevenDays = 7 * 24 * 60 * 60 * 1000; // 7 天的毫秒數
-            const timeDifference = new Date() - maxDeathTime; // 現在時間與最後記錄時間的差值
-
-            if (timeDifference > sevenDays) {
-                const sevenDaysAgo = new Date();
-                sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-                console.log(`⏳ 資料超過 7 天，從 ${sevenDaysAgo.toLocaleString()} 開始獲取舊資料。`);
-                取得Boss歷史資料(sevenDaysAgo);
-            } else {
-                console.log(`⏳ 資料在 7 天內，從最後死亡時間 ${maxDeathTime.toLocaleString()} 開始獲取舊資料。`);
-                取得Boss歷史資料(maxDeathTime);
-            }
-        } else {
-            const sevenDaysAgo = new Date();
-            sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            console.log("🚫 無任何 Boss 記錄，從 7 天前開始獲取舊資料。");
-            取得Boss歷史資料(sevenDaysAgo);
-        }
-    } else {
-        console.log("ℹ️ [雲端環境] 略過 Chrome Extension 分頁抓取，Boss 數據與擊殺紀錄已直接由 Cloudflare Worker 提供。");
-    }
 
     console.log("--- loadFromLocalStorage 完成 ---");
 }

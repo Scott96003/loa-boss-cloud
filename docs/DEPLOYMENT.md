@@ -641,7 +641,7 @@ Boss 與分類設定都在 `cloudflare-worker/src/`，改完後依 9.1 部署 Wo
   - `areas`：受限區域名稱 (Discord 擊殺訊息的地點，例如 `傲慢之塔 30樓 Tower of Insolence 30F`)。只要某個區域出現在任一 Boss 的 `areas`，listener 在該區域就只接受 `areas` 列有它的 Boss；listener 每 10 分鐘向 Worker 更新一次。
 - **調整分類**：修改 `categories.json`，每個分類列出自己的 `ids`：
   - `button: true`：會出現在前端的篩選按鈕。
-  - `webhook`：參與輪迴刷新推播；`secret` 為 Webhook 的 secret 名稱，`label` 為推播顯示名稱（預設用 `name`）。新的 secret 需另外 `wrangler secret put`。
+  - `webhook`：參與輪迴刷新推播；`secret` 為 Webhook 的 secret 名稱，`label` 為推播顯示名稱（預設用 `name`）。新的 secret 需另外 `wrangler secret put`。Alarm 每個整點檢查一次：分類內任一隻 Boss 的區段換了就推播。各分類上次推播的區段記錄在 `config.lastRespawnRanges`（以 secret 名稱為 key），新分類第一次只記錄、不推播。
 - Worker 啟動時會依 id 同步存檔：補入新 Boss，並同步既有 Boss 的 `bossName`、`respawnTime`、`bossCount`、`countMode`、`areas`；死亡紀錄不受影響。從 JSON 移除的 Boss 不會從存檔刪除。
 
 ### 9.4 更換 Discord User Token

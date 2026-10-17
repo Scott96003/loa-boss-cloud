@@ -34,8 +34,6 @@ function getCategoryIds(name) {
 // 魂塔長老另有擊殺即時推播與活動統計
 const ELDER_BOSS_IDS = getCategoryIds("魂塔長老");
 const WEBHOOK_CATEGORIES = bossCategories.filter(c => c.webhook);
-// 所有有推播的分類 Boss，用來決定輪迴刷新的切換小時
-const ALL_DC_CHECK_BOSS_IDS = [...new Set(WEBHOOK_CATEGORIES.flatMap(c => c.ids))];
 // 前端篩選按鈕 (依 categories.json 順序)；showInMessage: false 的分類不作為擊殺訊息的類別
 const BUTTON_CATEGORIES = bossCategories.filter(c => c.button).map(c => ({
   name: c.name,
@@ -1726,107 +1724,74 @@ export class BossRoom {
   /**
    * 檢查並觸發「重生輪迴時間刷新」Webhook
    */
-  async checkAndTriggerRespawnCycle() {
-    const now = new Date();
-    const twHours = getTaiwanHours(now);
-    const twMinutes = new Date(now.getTime() + 8 * 60 * 60 * 1000).getUTCMinutes();
-
+  async checkAndTriggerRespawnCycle(now = new Date()) {
     if (!this.mainData.bossListData || this.mainData.bossListData.length === 0) {
       return { triggered: false, reason: "no_data" };
     }
 
-    // 1. 找出所有監控 Boss 的重生結束小時 (去重並排序)
-    const allTargetHours = [...new Set(
-      this.mainData.bossListData
-        .filter(item => ALL_DC_CHECK_BOSS_IDS.includes(Number(item.id)))
-        .map(item => {
-          const range = item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1);
-          return parseInt(range.split('~')[1], 10);
-        })
-        .filter(h => !isNaN(h))
-    )].sort((a, b) => a - b);
+    // 1. 依現在時間重算所有 Boss 的區段 (重生間隔)
+    const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
+      ? this.mainData.config.rebootTime
+      : new Date(now.getTime() - 7 * 24 * 3600 * 1000);
+    this.mainData.bossListData.forEach(b => refreshBossComputedFields(b, rebootTime, now));
 
-    if (allTargetHours.length === 0) {
-      return { triggered: false, reason: "no_target_hours" };
-    }
+    // 2. 每個推播分類各自比對「上次推播時的區段」，區段有變才推播
+    //    區段簽章為分類內所有 Boss 區段去重排序後的字串，例如 "08~13|13~20"
+    if (!this.mainData.config) this.mainData.config = {};
+    const lastRanges = this.mainData.config.lastRespawnRanges || {};
+    const changed = [];
+    const initialized = [];
 
-    // 2. 決定下一個應切換的小時
-    const nextHourToday = allTargetHours.find(h => h >= twHours);
-    const newRange = nextHourToday !== undefined ? nextHourToday : allTargetHours[0];
+    for (const category of WEBHOOK_CATEGORIES) {
+      const bosses = this.mainData.bossListData.filter(item => category.ids.includes(Number(item.id)));
+      if (bosses.length === 0) continue;
 
-    const lastRefresh = this.mainData.config ? this.mainData.config.lastRefreshBossTime : null;
+      const key = category.webhook.secret;
+      const signature = [...new Set(bosses.map(b => b.重生間隔))].sort().join("|");
+      if (lastRanges[key] === signature) continue;
 
-    // 若第一次啟動且無 lastRefreshBossTime，先對齊當前輪迴小時
-    if (lastRefresh === undefined || lastRefresh === null) {
-      if (!this.mainData.config) this.mainData.config = {};
-      this.mainData.config.lastRefreshBossTime = newRange;
-      await this.saveMainData();
-      return { triggered: false, initialized: true, newRange };
-    }
-
-    // 3. 判斷輪迴小時是否發生切換
-    // 舊資料可能由前端 localStorage 寫入字串，統一轉成數字比較
-    if (newRange !== Number(lastRefresh)) {
-      console.log(`[RESPAWN_CYCLE] 觸發重生輪迴時間切換: ${lastRefresh} -> ${newRange} (台灣時間 ${twHours}:${twMinutes})`);
-
-      if (!this.mainData.config) this.mainData.config = {};
-      this.mainData.config.lastRefreshBossTime = newRange;
-
-      // 更新所有 Boss 計算欄位
-      const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
-        ? this.mainData.config.rebootTime
-        : new Date(Date.now() - 7 * 24 * 3600 * 1000);
-
-      this.mainData.bossListData.forEach(b => {
-        refreshBossComputedFields(b, rebootTime, now);
-      });
-
-      // 4. 定義推播分類映射 (Webhook URL 一律由 wrangler secret 提供)
-      const bossReportMap = WEBHOOK_CATEGORIES.map(c => ({
-        name: c.webhook.label || c.name,
-        checkList: c.ids,
-        webhookUrl: this.env[c.webhook.secret]
-      }));
-
-      const titleMsg = "*** 重生輪迴時間刷新 ***\n";
-
-      for (const { name, checkList, webhookUrl } of bossReportMap) {
-        if (!webhookUrl) {
-          console.warn(`⚠️ [WEBHOOK] 未設定「${name}」分類的 Webhook secret，略過輪迴刷新推播。`);
-          continue;
-        }
-
-        let bosses = this.mainData.bossListData.filter(item => checkList.includes(Number(item.id)));
-        if (bosses.length === 0) continue;
-
-        bosses.sort((a, b) => {
-          const aStart = parseInt(String(a.重生間隔 || '').split('~')[0], 10) || 0;
-          const bStart = parseInt(String(b.重生間隔 || '').split('~')[0], 10) || 0;
-          return Math.abs(aStart - newRange) - Math.abs(bStart - newRange);
-        });
-
-        const firstStart = parseInt(String(bosses[0].重生間隔 || '').split('~')[0], 10);
-        if (firstStart === newRange) {
-          await this.sendRespawnCycleWebhook(webhookUrl, titleMsg, checkList, now, name);
-        }
+      // 第一次記錄 (剛部署或新增分類) 只對齊目前區段，不推播
+      if (lastRanges[key] === undefined) {
+        initialized.push(key);
+      } else {
+        changed.push({ category, from: lastRanges[key], to: signature });
       }
+      lastRanges[key] = signature;
+    }
+    this.mainData.config.lastRespawnRanges = lastRanges;
 
-      // 廣播給所有連線中的前端網頁
-      const syncBroadcast = {
-        type: "Sync_Boss_Data",
-        bossListData: this.mainData.bossListData,
-        config: this.mainData.config,
-        gateOpenTime: this.mainData.gateOpenTime,
-        gateCloseTime: this.mainData.gateCloseTime,
-        senderId: "server"
-      };
-      this.broadcast(JSON.stringify(syncBroadcast));
-      await this.saveMainData();
-
-      return { triggered: true, newRange };
+    if (changed.length === 0) {
+      if (initialized.length > 0) await this.saveMainData();
+      return { triggered: false, initialized };
     }
 
-    return { triggered: false, currentRange: lastRefresh, newRange };
+    const titleMsg = "*** 重生輪迴時間刷新 ***\n";
+    for (const { category, from, to } of changed) {
+      const name = category.webhook.label || category.name;
+      console.log(`[RESPAWN_CYCLE] 「${name}」區段切換: ${from} -> ${to}`);
+
+      // Webhook URL 一律由 wrangler secret 提供
+      const webhookUrl = this.env[category.webhook.secret];
+      if (!webhookUrl) {
+        console.warn(`⚠️ [WEBHOOK] 未設定「${name}」分類的 Webhook secret，略過輪迴刷新推播。`);
+        continue;
+      }
+      await this.sendRespawnCycleWebhook(webhookUrl, titleMsg, category.ids, now, name);
+    }
+
+    // 3. 廣播給所有連線中的前端網頁
+    const syncBroadcast = {
+      type: "Sync_Boss_Data",
+      bossListData: this.mainData.bossListData,
+      config: this.mainData.config,
+      gateOpenTime: this.mainData.gateOpenTime,
+      gateCloseTime: this.mainData.gateCloseTime,
+      senderId: "server"
+    };
+    this.broadcast(JSON.stringify(syncBroadcast));
+    await this.saveMainData();
+
+    return { triggered: true, changed: changed.map(c => c.category.webhook.secret) };
   }
 
   /**

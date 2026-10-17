@@ -407,6 +407,20 @@ function calculateActiveStats(bossListData, ids) {
   return `${sumActive}/${sum}(${pct}%)`;
 }
 
+/**
+ * 將 defaultBossList 中有、但存檔清單沒有的 Boss (依 id 比對) 補進存檔清單
+ * 已存在的 Boss 不做任何變動，保留其死亡紀錄
+ * @returns {Array} 新補入的 Boss
+ */
+export function mergeNewDefaultBosses(bossListData, defaults) {
+  const existingIds = new Set(bossListData.map(b => String(b.id)));
+  const added = defaults
+    .filter(b => !existingIds.has(String(b.id)))
+    .map(b => structuredClone(b));
+  bossListData.push(...added);
+  return added;
+}
+
 export class BossRoom {
   constructor(state, env) {
     this.state = state;
@@ -441,6 +455,13 @@ export class BossRoom {
       const savedData = await this.storage.get("mainData");
       if (savedData && savedData.bossListData && savedData.bossListData.length > 0) {
         this.mainData = { ...this.mainData, ...savedData };
+
+        // 存檔會整份取代預設清單，需補入 defaultBossList 之後新增的 Boss
+        const added = mergeNewDefaultBosses(this.mainData.bossListData, defaultBossList);
+        if (added.length > 0) {
+          console.log(`[BOSS_LIST] 補入新 Boss ${added.length} 隻: ${added.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
+          await this.storage.put("mainData", this.mainData);
+        }
       }
       try {
         const currentAlarm = await this.storage.getAlarm();

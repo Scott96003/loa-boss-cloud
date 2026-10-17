@@ -182,12 +182,15 @@ function addMessage(bossData) {
   var now = new Date();
   var seconds = now.getSeconds().toString().padStart(2, '0');
 
+  var labels = [];
+  if (bossData.type == 1) labels.push("小隱龍");
+  if (bossData.type == 2) labels.push("大隱龍");
+  var category = getMessageCategory(bossData.id);
+  if (category) labels.push("[" + category + "]");
+
   var message = bossData.death + ":" + seconds;
-  if (bossData.type == 1) {
-    message += " 小隱龍 "
-  }
-  if (bossData.type == 2) {
-    message += " 大隱龍 "
+  if (labels.length > 0) {
+    message += " " + labels.join(" ") + " ";
   }
   message += "【" + bossData.bossName + "】被 " + bossData.emblem + " 擊殺";
   config.messageList.push(message);

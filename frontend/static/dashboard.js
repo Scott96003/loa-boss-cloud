@@ -56,6 +56,18 @@ const getBossCount = (obj) => Number(obj.bossCount) || 1;
 const isUnfixedCount = (obj) => obj.countMode === "unfixed";
 
 /**
+ * 取得 boss 在擊殺訊息顯示的類別 (與 Worker 相同規則)：
+ * 依 Worker categories 順序第一個包含該 id 的分類，showInMessage 為 false 的分類略過
+ * @param {string|number} bossId - boss id
+ * @returns {string} - 類別名稱，沒有則為空字串
+ */
+const getMessageCategory = (bossId) => {
+  const id = Number(bossId) % 100000;
+  const category = (window.bossCategories || []).find(c => c.showInMessage !== false && c.ids.includes(id));
+  return category ? category.name : "";
+};
+
+/**
  * 將 boss 資料新增為表格的一行
  * @param {object} data - boss 資料
  */

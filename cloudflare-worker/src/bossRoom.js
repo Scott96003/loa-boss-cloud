@@ -40,8 +40,35 @@ const ELDER_BOSS_IDS = getCategoryIds("魂塔長老");
 const WEBHOOK_CATEGORIES = bossCategories.filter(c => c.webhook);
 // 所有有推播的分類 Boss，用來決定輪迴刷新的切換小時
 const ALL_DC_CHECK_BOSS_IDS = [...new Set(WEBHOOK_CATEGORIES.flatMap(c => c.ids))];
-// 前端篩選按鈕 (依 categories.json 順序)
-const BUTTON_CATEGORIES = bossCategories.filter(c => c.button).map(c => ({ name: c.name, ids: c.ids }));
+// 前端篩選按鈕 (依 categories.json 順序)；showInMessage: false 的分類不作為擊殺訊息的類別
+const BUTTON_CATEGORIES = bossCategories.filter(c => c.button).map(c => ({
+  name: c.name,
+  ids: c.ids,
+  ...(c.showInMessage === false ? { showInMessage: false } : {})
+}));
+
+/**
+ * 取得 Boss 在擊殺訊息顯示的類別：依 categories.json 順序第一個包含該 id 的按鈕分類
+ */
+function getMessageCategory(bossId) {
+  const id = Number(bossId) % 100000;
+  const category = BUTTON_CATEGORIES.find(c => c.showInMessage !== false && c.ids.includes(id));
+  return category ? category.name : "";
+}
+
+/**
+ * 組成擊殺訊息，例如「2026-10-17 09:54:00 [奧塔監視者] 【恐怖的吸血鬼】被 KenDelta 擊殺」
+ * 沒有隱龍類型與類別時與舊格式相同
+ */
+function formatKillMessage({ death, type, bossId, bossName, emblem }) {
+  const labels = [];
+  if (type === 1) labels.push("小隱龍");
+  if (type === 2) labels.push("大隱龍");
+  const category = getMessageCategory(bossId);
+  if (category) labels.push(`[${category}]`);
+  const labelStr = labels.length > 0 ? ` ${labels.join(" ")} ` : "";
+  return `${death}:00${labelStr}【${bossName}】被 ${emblem || "未知血盟"} 擊殺`;
+}
 
 // 龍門：擊殺任一隻龍後開啟 3 小時 (與前端 dragonGate.js 相同)
 const DRAGON_GATE_BOSS_IDS = [91516, 91202, 91605];
@@ -882,9 +909,9 @@ export class BossRoom {
 
       // 2. 自動匯總：將每隻 Boss 的 deathList 歷史與現有 messageList 結合，生成有效區間內的完整擊殺清單
       const fullMessageMap = new Map();
-      (this.mainData.messageList || []).forEach(msg => {
-        fullMessageMap.set(msg, msg);
-      });
+      // 同一筆擊殺 (時間+Boss+血盟) 以 deathList 產生的訊息為準，避免與舊格式 (無類別) 的訊息重複
+      const killKey = (death, bossName, emblem) => `${death}|${bossName}|${emblem}`;
+      const generatedKills = new Set();
 
       if (this.mainData.bossListData && Array.isArray(this.mainData.bossListData)) {
         this.mainData.bossListData.forEach(b => {
@@ -893,17 +920,23 @@ export class BossRoom {
               if (dl.death) {
                 const dlDate = parseTaiwanDate(dl.death);
                 if (dlDate && dlDate >= cutoffDate) {
-                  let typeLabel = "";
-                  if (dl.type === 1) typeLabel = " 小隱龍 ";
-                  if (dl.type === 2) typeLabel = " 大隱龍 ";
-                  const itemStr = `${dl.death}:00${typeLabel}【${dl.bossName || b.bossName}】被 ${dl.emblem || "未知血盟"} 擊殺`;
+                  const bossName = dl.bossName || b.bossName;
+                  const emblem = dl.emblem || "未知血盟";
+                  const itemStr = formatKillMessage({ death: dl.death, type: dl.type, bossId: b.id, bossName, emblem });
                   fullMessageMap.set(itemStr, itemStr);
+                  generatedKills.add(killKey(dl.death, bossName, emblem));
                 }
               }
             });
           }
         });
       }
+
+      (this.mainData.messageList || []).forEach(msg => {
+        const parsed = parseKillMessage(msg);
+        if (parsed && generatedKills.has(killKey(parsed.death, parsed.bossName, parsed.emblem))) return;
+        fullMessageMap.set(msg, msg);
+      });
 
       // 依照時間排序並保留最多 10,000 筆
       const sortedMessageList = Array.from(fullMessageMap.values()).sort((a, b) => {
@@ -1510,10 +1543,13 @@ export class BossRoom {
 
       // 2. 自動維護最新 10,000 筆擊殺紀錄訊息 (供前端顯示)
       if (!this.mainData.messageList) this.mainData.messageList = [];
-      let typeLabel = "";
-      if (deathInfo.type === 1) typeLabel = " 小隱龍 ";
-      if (deathInfo.type === 2) typeLabel = " 大隱龍 ";
-      const msgItem = `${deathInfo.death}:00${typeLabel}【${deathInfo.bossName}】被 ${deathInfo.emblem || "未知血盟"} 擊殺`;
+      const msgItem = formatKillMessage({
+        death: deathInfo.death,
+        type: deathInfo.type,
+        bossId: matchedBoss ? matchedBoss.id : deathInfo.id,
+        bossName: deathInfo.bossName,
+        emblem: deathInfo.emblem
+      });
 
       if (!this.mainData.messageList.includes(msgItem)) {
         this.mainData.messageList.push(msgItem);

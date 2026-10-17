@@ -159,8 +159,10 @@ document.addEventListener("DOMContentLoaded", function () {
  * @param {Array<{name: string, ids: Array<number>}>} categories
  */
 function renderCategoryButtons(categories) {
+    if (!Array.isArray(categories)) return;
+    window.bossCategories = categories;
     const buttonsContainer = document.getElementById("filterButtons");
-    if (!buttonsContainer || !Array.isArray(categories)) return;
+    if (!buttonsContainer) return;
 
     const activeName = buttonsContainer.querySelector("button.active[data-category]")?.dataset.category;
     buttonsContainer.querySelectorAll("button[data-category]").forEach(btn => btn.remove());

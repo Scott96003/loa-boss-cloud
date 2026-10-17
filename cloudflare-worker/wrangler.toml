@@ -13,13 +13,8 @@ bindings = [
 tag = "v1"
 new_sqlite_classes = ["BossRoom"]
 
-# 輪迴刷新由 BossRoom 的 Durable Object Alarm 於每個整點檢查，龍門開啟中則另於關閉時間喚醒，不需 Cron Trigger。
+# 龍門開啟中由 BossRoom 的 Durable Object Alarm 於關閉時間喚醒並推送關閉通知，不需 Cron Trigger。
 #
 # Discord Webhook 一律以 secret 設定 (切勿寫進程式碼或本檔)：
-#   wrangler secret put DISCORD_WEBHOOK_ELDER
-#   wrangler secret put DISCORD_WEBHOOK_TOWER
-#   wrangler secret put DISCORD_WEBHOOK_CAMP
-#   wrangler secret put DISCORD_WEBHOOK_WILD
-#   wrangler secret put DISCORD_WEBHOOK_TOWER_WATCHER
-#   wrangler secret put DISCORD_WEBHOOK_ALL
+#   wrangler secret put DISCORD_WEBHOOK_ELDER    (魂塔長老擊殺通知)
 #   wrangler secret put DISCORD_WEBHOOK_DRAGON   (龍門開啟／關閉通知)

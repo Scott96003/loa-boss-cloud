@@ -23,7 +23,7 @@ function parseTaiwanDate(dateStr) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// Boss 分類設定 (categories.json)：button 為前端篩選按鈕，webhook 為輪迴刷新推播
+// Boss 分類設定 (categories.json)：button 為前端篩選按鈕
 // 新增分類或調整分類成員只需修改 categories.json
 function getCategoryIds(name) {
   const category = bossCategories.find(c => c.name === name);
@@ -33,7 +33,6 @@ function getCategoryIds(name) {
 
 // 魂塔長老另有擊殺即時推播與活動統計
 const ELDER_BOSS_IDS = getCategoryIds("魂塔長老");
-const WEBHOOK_CATEGORIES = bossCategories.filter(c => c.webhook);
 // 前端篩選按鈕 (依 categories.json 順序)；showInMessage: false 的分類不作為擊殺訊息的類別
 const BUTTON_CATEGORIES = bossCategories.filter(c => c.button).map(c => ({
   name: c.name,
@@ -243,14 +242,6 @@ function parseKillMessage(msg) {
   return m ? { death: m[1], bossName: m[2], emblem: m[3] } : null;
 }
 
-
-/**
- * 取得下一個整點 (+5 秒) 的時間戳記；台灣時區為 UTC+8，整點邊界與 UTC 相同
- */
-function getNextHourBoundary(nowMs = Date.now()) {
-  const HOUR_MS = 60 * 60 * 1000;
-  return Math.floor(nowMs / HOUR_MS) * HOUR_MS + HOUR_MS + 5 * 1000;
-}
 
 /**
  * 以台灣時區、24 小時制格式化時間 (與前端龍門訊息格式相同)
@@ -552,14 +543,8 @@ export class BossRoom {
     // 初始化時從持久化儲存載入歷史資料
     this.state.blockConcurrencyWhile(async () => {
       await this.loadMainData();
-      try {
-        const currentAlarm = await this.storage.getAlarm();
-        if (currentAlarm === null) {
-          await this.storage.setAlarm(Date.now() + 30 * 1000);
-        }
-      } catch (err) {
-        console.warn("[ALARM] 初始化 Alarm 失敗:", err);
-      }
+      // 龍門開啟中卻沒有排程時補上，確保關閉通知會送出
+      await this.scheduleNextAlarm();
     });
   }
 
@@ -653,11 +638,6 @@ export class BossRoom {
    */
   async alarm() {
     try {
-      await this.checkAndTriggerRespawnCycle();
-    } catch (err) {
-      console.error("[ALARM] 執行輪迴排程檢查失敗:", err);
-    }
-    try {
       await this.checkDragonGateClose();
     } catch (err) {
       console.error("[ALARM] 執行龍門關閉檢查失敗:", err);
@@ -666,18 +646,14 @@ export class BossRoom {
   }
 
   /**
-   * 排程下一次 Alarm：每個整點檢查輪迴，龍門開啟中則提前於關閉時間喚醒
+   * 排程下一次 Alarm：只在龍門開啟中於關閉時間喚醒，推送關閉通知
    */
   async scheduleNextAlarm() {
-    let next = getNextHourBoundary();
-    if (this.mainData.gateOpenTime && this.mainData.gateCloseTime) {
-      const closeMs = new Date(this.mainData.gateCloseTime).getTime();
-      if (!isNaN(closeMs)) {
-        next = Math.min(next, Math.max(closeMs, Date.now() + 1000));
-      }
-    }
+    if (!this.mainData.gateOpenTime || !this.mainData.gateCloseTime) return;
+    const closeMs = new Date(this.mainData.gateCloseTime).getTime();
+    if (isNaN(closeMs)) return;
     try {
-      await this.storage.setAlarm(next);
+      await this.storage.setAlarm(Math.max(closeMs, Date.now() + 1000));
     } catch (e) {
       console.warn("[ALARM] 排程下一次 Alarm 失敗:", e);
     }
@@ -1718,115 +1694,6 @@ export class BossRoom {
       }
     } catch (err) {
       console.error("❌ [WEBHOOK] 龍門通知連線異常:", err.message);
-    }
-  }
-
-  /**
-   * 檢查並觸發「重生輪迴時間刷新」Webhook
-   */
-  async checkAndTriggerRespawnCycle(now = new Date()) {
-    if (!this.mainData.bossListData || this.mainData.bossListData.length === 0) {
-      return { triggered: false, reason: "no_data" };
-    }
-
-    // 1. 依現在時間重算所有 Boss 的區段 (重生間隔)
-    const rebootTime = (this.mainData.config && this.mainData.config.rebootTime)
-      ? this.mainData.config.rebootTime
-      : new Date(now.getTime() - 7 * 24 * 3600 * 1000);
-    this.mainData.bossListData.forEach(b => refreshBossComputedFields(b, rebootTime, now));
-
-    // 2. 每個推播分類各自比對「上次推播時的區段」，區段有變才推播
-    //    區段簽章為分類內所有 Boss 區段去重排序後的字串，例如 "08~13|13~20"
-    if (!this.mainData.config) this.mainData.config = {};
-    const lastRanges = this.mainData.config.lastRespawnRanges || {};
-    const changed = [];
-    const initialized = [];
-
-    for (const category of WEBHOOK_CATEGORIES) {
-      const bosses = this.mainData.bossListData.filter(item => category.ids.includes(Number(item.id)));
-      if (bosses.length === 0) continue;
-
-      const key = category.webhook.secret;
-      const signature = [...new Set(bosses.map(b => b.重生間隔))].sort().join("|");
-      if (lastRanges[key] === signature) continue;
-
-      // 第一次記錄 (剛部署或新增分類) 只對齊目前區段，不推播
-      if (lastRanges[key] === undefined) {
-        initialized.push(key);
-      } else {
-        changed.push({ category, from: lastRanges[key], to: signature });
-      }
-      lastRanges[key] = signature;
-    }
-    this.mainData.config.lastRespawnRanges = lastRanges;
-
-    if (changed.length === 0) {
-      if (initialized.length > 0) await this.saveMainData();
-      return { triggered: false, initialized };
-    }
-
-    const titleMsg = "*** 重生輪迴時間刷新 ***\n";
-    for (const { category, from, to } of changed) {
-      const name = category.webhook.label || category.name;
-      console.log(`[RESPAWN_CYCLE] 「${name}」區段切換: ${from} -> ${to}`);
-
-      // Webhook URL 一律由 wrangler secret 提供
-      const webhookUrl = this.env[category.webhook.secret];
-      if (!webhookUrl) {
-        console.warn(`⚠️ [WEBHOOK] 未設定「${name}」分類的 Webhook secret，略過輪迴刷新推播。`);
-        continue;
-      }
-      await this.sendRespawnCycleWebhook(webhookUrl, titleMsg, category.ids, now, name);
-    }
-
-    // 3. 廣播給所有連線中的前端網頁
-    const syncBroadcast = {
-      type: "Sync_Boss_Data",
-      bossListData: this.mainData.bossListData,
-      config: this.mainData.config,
-      gateOpenTime: this.mainData.gateOpenTime,
-      gateCloseTime: this.mainData.gateCloseTime,
-      senderId: "server"
-    };
-    this.broadcast(JSON.stringify(syncBroadcast));
-    await this.saveMainData();
-
-    return { triggered: true, changed: changed.map(c => c.category.webhook.secret) };
-  }
-
-  /**
-   * 發送重生輪迴時間刷新的 Webhook 通知
-   */
-  async sendRespawnCycleWebhook(webhookUrl, titleMsg, checkList, now = new Date(), categoryName = "") {
-    try {
-      const rebootTime = this.mainData.config ? this.mainData.config.rebootTime : null;
-      const bosses = (this.mainData.bossListData || [])
-        .filter(item => checkList.includes(Number(item.id)));
-
-      const tableData = bosses.map(item =>
-        buildDiscordTableRow(item, now, item.重生間隔 || getSpawnRange(now, parseFloat(item.respawnTime) || 1), rebootTime)
-      );
-
-      const tableMsg = formatTableForDiscord(tableData, true);
-      const activeMsg = `\n> 活動出現次數: ${calculateActiveStats(this.mainData.bossListData, checkList)}`;
-      const fullContent = titleMsg + tableMsg + activeMsg;
-
-      const response = await fetch(webhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          content: fullContent,
-          username: `LOA Boss 輪迴監控 [${categoryName}]`
-        })
-      });
-
-      if (!response.ok) {
-        console.error(`❌ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 發送失敗: HTTP ${response.status}`);
-      } else {
-        console.log(`✅ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 發送成功！`);
-      }
-    } catch (err) {
-      console.error(`❌ [WEBHOOK] 輪迴刷新 Webhook (${categoryName}) 異常:`, err);
     }
   }
 }

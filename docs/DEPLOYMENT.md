@@ -153,12 +153,7 @@ http://localhost:8090/index.html
 
 | Secret 名稱 | 用途 |
 | --- | --- |
-| `DISCORD_WEBHOOK_ELDER` | 魂塔長老 |
-| `DISCORD_WEBHOOK_TOWER` | 塔類 Boss |
-| `DISCORD_WEBHOOK_CAMP` | 營地類 Boss |
-| `DISCORD_WEBHOOK_WILD` | 野外類 Boss |
-| `DISCORD_WEBHOOK_TOWER_WATCHER` | 奧塔監視者類 Boss |
-| `DISCORD_WEBHOOK_ALL` | 全部 Boss |
+| `DISCORD_WEBHOOK_ELDER` | 魂塔長老擊殺 |
 | `DISCORD_WEBHOOK_DRAGON` | 龍門開啟／關閉 |
 
 沒設定的 Webhook 會直接略過，不影響其他功能。
@@ -194,7 +189,7 @@ new_sqlite_classes = ["BossRoom"]
 
 - `new_sqlite_classes` 代表使用 **SQLite 型 Durable Object**，這是 Workers 免費方案唯一可用的 Durable Object 類型，**請勿改成 `new_classes`**。
 - `[[migrations]]` 的 `tag` 一旦部署過就不要修改或刪除；未來若新增／更名 DO 類別，要追加新的 migration（`v2`…）。
-- 整點刷新由 Durable Object Alarm 處理，**不需要** Cron Trigger。
+- 龍門關閉通知由 Durable Object Alarm 處理，**不需要** Cron Trigger。
 
 ### 5.3 設定 Secrets
 
@@ -213,11 +208,6 @@ npx wrangler secret put DISCORD_TARGET_CHANNEL_ID --config wrangler.toml
 
 # 選填：Webhook 推播
 npx wrangler secret put DISCORD_WEBHOOK_ELDER --config wrangler.toml
-npx wrangler secret put DISCORD_WEBHOOK_TOWER --config wrangler.toml
-npx wrangler secret put DISCORD_WEBHOOK_CAMP --config wrangler.toml
-npx wrangler secret put DISCORD_WEBHOOK_WILD --config wrangler.toml
-npx wrangler secret put DISCORD_WEBHOOK_TOWER_WATCHER --config wrangler.toml
-npx wrangler secret put DISCORD_WEBHOOK_ALL --config wrangler.toml
 npx wrangler secret put DISCORD_WEBHOOK_DRAGON --config wrangler.toml
 ```
 
@@ -641,7 +631,6 @@ Boss 與分類設定都在 `cloudflare-worker/src/`，改完後依 9.1 部署 Wo
   - `areas`：受限區域名稱 (Discord 擊殺訊息的地點，例如 `傲慢之塔 30樓 Tower of Insolence 30F`)。只要某個區域出現在任一 Boss 的 `areas`，listener 在該區域就只接受 `areas` 列有它的 Boss；listener 每 10 分鐘向 Worker 更新一次。
 - **調整分類**：修改 `categories.json`，每個分類列出自己的 `ids`：
   - `button: true`：會出現在前端的篩選按鈕。
-  - `webhook`：參與輪迴刷新推播；`secret` 為 Webhook 的 secret 名稱，`label` 為推播顯示名稱（預設用 `name`）。新的 secret 需另外 `wrangler secret put`。Alarm 每個整點檢查一次：分類內任一隻 Boss 的區段換了就推播。各分類上次推播的區段記錄在 `config.lastRespawnRanges`（以 secret 名稱為 key），新分類第一次只記錄、不推播。
 - Worker 啟動時會依 id 同步存檔：補入新 Boss，並同步既有 Boss 的 `bossName`、`respawnTime`、`bossCount`、`countMode`、`areas`；死亡紀錄不受影響。從 JSON 移除的 Boss 不會從存檔刪除。
 
 ### 9.4 更換 Discord User Token
@@ -730,12 +719,7 @@ npx wrangler tail --config wrangler.toml          # 即時查看正式環境 log
 | `AUTH_JWT_SECRET` | ✅ | 簽發登入憑證用的密鑰 |
 | `DISCORD_TARGET_GUILD_ID` | | 目標伺服器 ID，預設 `1198482702932914277` |
 | `DISCORD_TARGET_CHANNEL_ID` | | 目標頻道 ID，預設 `1426495371332292608` |
-| `DISCORD_WEBHOOK_ELDER` | | 魂塔長老推播 |
-| `DISCORD_WEBHOOK_TOWER` | | 塔類推播 |
-| `DISCORD_WEBHOOK_CAMP` | | 營地類推播 |
-| `DISCORD_WEBHOOK_WILD` | | 野外類推播 |
-| `DISCORD_WEBHOOK_TOWER_WATCHER` | | 奧塔監視者類推播 |
-| `DISCORD_WEBHOOK_ALL` | | 全部 Boss 推播 |
+| `DISCORD_WEBHOOK_ELDER` | | 魂塔長老擊殺推播 |
 | `DISCORD_WEBHOOK_DRAGON` | | 龍門開啟／關閉推播 |
 
 ### discord-listener（`.env`）

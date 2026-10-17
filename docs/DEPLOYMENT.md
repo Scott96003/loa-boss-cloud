@@ -628,6 +628,18 @@ sudo journalctl -u loa-listener -n 30 --no-pager
 
 方式 B（上傳）：重複第 7.6 節方式 B 的打包上傳與解壓（`.env` 已排除，不會被覆蓋），再執行上面的 `npm ci` 與 `restart`。
 
+### 9.5 新增 Boss 或分類
+
+Boss 與分類設定都在 `cloudflare-worker/src/`，改完後依 9.1 部署 Worker 即可。
+
+- **新增 Boss**：在 `defaultBossList.json` 加一筆。可用欄位：
+  - `bossCount`：每輪隻數，預設 1。
+  - `countMode: "unfixed"`：每輪隻數不固定，數量欄改顯示「已擊殺 N」。
+- **調整分類**：修改 `categories.json`，每個分類列出自己的 `ids`：
+  - `button: true`：會出現在前端的篩選按鈕。
+  - `webhook`：參與輪迴刷新推播；`secret` 為 Webhook 的 secret 名稱，`label` 為推播顯示名稱（預設用 `name`）。新的 secret 需另外 `wrangler secret put`。
+- Worker 啟動時會依 id 同步存檔：補入新 Boss，並同步既有 Boss 的 `bossName`、`respawnTime`、`bossCount`、`countMode`；死亡紀錄不受影響。從 JSON 移除的 Boss 不會從存檔刪除。
+
 ### 9.4 更換 Discord User Token
 
 User Token 在變更密碼、登出所有裝置時會失效，listener log 會出現驗證失敗。更新步驟：

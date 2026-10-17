@@ -11,6 +11,7 @@
  */
 
 import defaultBossList from "./defaultBossList.json";
+import bossCategories from "./categories.json";
 
 const P2P_SIGNALING_TYPES = new Set(['offer', 'answer', 'candidate', 'chat_message']);
 const BROADCAST_MESSAGE_TYPES = new Set(['Boss_Death', 'Ack_Sync']);
@@ -26,15 +27,21 @@ function parseTaiwanDate(dateStr) {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// 魂塔長老分類之所有 Boss ID (共 8 隻)
-const ELDER_BOSS_IDS = [45955, 45956, 45957, 45958, 45959, 45960, 45961, 45962];
-const CAMP_BOSS_IDS = [81082, 45685, 45674, 45625, 45753];
-const TOWER_BOSS_IDS = [45606, 45653, 45654, 45618, 45672, 45673];
-const TOWER_ALL_BOSS_IDS = [45513, 45547, 45606, 45650, 45652, 45653, 45654, 45618, 45672, 45673];
-const WILD_BOSS_IDS = [45614, 45801, 46142, 46141, 99085, 99086, 99065, 45863];
-// 奧塔監視者：每輪隨機刷 N 隻 (countMode: "unfixed")，只統計本輪已擊殺數
-const TOWER_WATCHER_BOSS_IDS = [46271];
-const ALL_DC_CHECK_BOSS_IDS = [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_ALL_BOSS_IDS, ...WILD_BOSS_IDS, ...TOWER_WATCHER_BOSS_IDS];
+// Boss 分類設定 (categories.json)：button 為前端篩選按鈕，webhook 為輪迴刷新推播
+// 新增分類或調整分類成員只需修改 categories.json
+function getCategoryIds(name) {
+  const category = bossCategories.find(c => c.name === name);
+  if (!category) throw new Error(`categories.json 缺少「${name}」分類`);
+  return category.ids;
+}
+
+// 魂塔長老另有擊殺即時推播與活動統計
+const ELDER_BOSS_IDS = getCategoryIds("魂塔長老");
+const WEBHOOK_CATEGORIES = bossCategories.filter(c => c.webhook);
+// 所有有推播的分類 Boss，用來決定輪迴刷新的切換小時
+const ALL_DC_CHECK_BOSS_IDS = [...new Set(WEBHOOK_CATEGORIES.flatMap(c => c.ids))];
+// 前端篩選按鈕 (依 categories.json 順序)
+const BUTTON_CATEGORIES = bossCategories.filter(c => c.button).map(c => ({ name: c.name, ids: c.ids }));
 
 // 龍門：擊殺任一隻龍後開啟 3 小時 (與前端 dragonGate.js 相同)
 const DRAGON_GATE_BOSS_IDS = [91516, 91202, 91605];
@@ -83,15 +90,10 @@ function getSpawnRange(currectTime, cycleHours) {
 }
 
 /**
- * 取得 Boss 每一輪應有的擊殺需求次數 (數量)
+ * 取得 Boss 每一輪應有的擊殺需求次數 (數量)，由 defaultBossList.json 的 bossCount 欄位設定，預設 1
  */
 function getBossCount(obj) {
-  let needBossCount = 1;
-  const idStr = String(obj.id);
-  if (idStr === "45545") needBossCount = 2;
-  if (idStr === "45640" || idStr === "45516") needBossCount = 3;
-  if (idStr === "46220") needBossCount = 4;
-  return needBossCount;
+  return Number(obj.bossCount) || 1;
 }
 
 /**
@@ -424,18 +426,43 @@ function calculateActiveStats(bossListData, ids) {
   return `${sumActive}/${sum}(${pct}%)`;
 }
 
+// 由 defaultBossList.json 維護的設定欄位，啟動時會同步到存檔 (死亡紀錄等執行期資料不受影響)
+const BOSS_DEFINITION_FIELDS = ["bossName", "respawnTime", "bossCount", "countMode"];
+
 /**
- * 將 defaultBossList 中有、但存檔清單沒有的 Boss (依 id 比對) 補進存檔清單
- * 已存在的 Boss 不做任何變動，保留其死亡紀錄
- * @returns {Array} 新補入的 Boss
+ * 依 defaultBossList 同步存檔清單 (依 id 比對)
+ * 1. 存檔沒有的 Boss 整筆補入
+ * 2. 已存在的 Boss 同步設定欄位；JSON 拿掉的欄位也一併移除
+ * 存檔有、但 defaultBossList 沒有的 Boss 保留不動
+ * @returns {{ added: Array, updated: Array }}
  */
-export function mergeNewDefaultBosses(bossListData, defaults) {
-  const existingIds = new Set(bossListData.map(b => String(b.id)));
-  const added = defaults
-    .filter(b => !existingIds.has(String(b.id)))
-    .map(b => structuredClone(b));
-  bossListData.push(...added);
-  return added;
+export function syncBossListWithDefaults(bossListData, defaults) {
+  const savedById = new Map(bossListData.map(b => [String(b.id), b]));
+  const added = [];
+  const updated = [];
+  defaults.forEach(def => {
+    const saved = savedById.get(String(def.id));
+    if (!saved) {
+      const boss = structuredClone(def);
+      bossListData.push(boss);
+      added.push(boss);
+      return;
+    }
+    let changed = false;
+    BOSS_DEFINITION_FIELDS.forEach(field => {
+      if (def[field] === undefined) {
+        if (field in saved) {
+          delete saved[field];
+          changed = true;
+        }
+      } else if (saved[field] !== def[field]) {
+        saved[field] = def[field];
+        changed = true;
+      }
+    });
+    if (changed) updated.push(saved);
+  });
+  return { added, updated };
 }
 
 export class BossRoom {
@@ -473,10 +500,15 @@ export class BossRoom {
       if (savedData && savedData.bossListData && savedData.bossListData.length > 0) {
         this.mainData = { ...this.mainData, ...savedData };
 
-        // 存檔會整份取代預設清單，需補入 defaultBossList 之後新增的 Boss
-        const added = mergeNewDefaultBosses(this.mainData.bossListData, defaultBossList);
+        // 存檔會整份取代預設清單，需補入新增的 Boss 並同步設定欄位
+        const { added, updated } = syncBossListWithDefaults(this.mainData.bossListData, defaultBossList);
         if (added.length > 0) {
           console.log(`[BOSS_LIST] 補入新 Boss ${added.length} 隻: ${added.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
+        }
+        if (updated.length > 0) {
+          console.log(`[BOSS_LIST] 同步 Boss 設定 ${updated.length} 隻: ${updated.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
+        }
+        if (added.length > 0 || updated.length > 0) {
           await this.storage.put("mainData", this.mainData);
         }
       }
@@ -893,6 +925,7 @@ export class BossRoom {
         gateOpenTime: this.mainData.gateOpenTime,
         gateCloseTime: this.mainData.gateCloseTime,
         messageList: sortedMessageList,
+        categories: BUTTON_CATEGORIES,
         last_updated: this.mainData.last_updated
       }, { headers: corsHeaders });
     }
@@ -1658,14 +1691,11 @@ export class BossRoom {
       });
 
       // 4. 定義推播分類映射 (Webhook URL 一律由 wrangler secret 提供)
-      const bossReportMap = [
-        { name: "長老", checkList: ELDER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_ELDER },
-        { name: "奧塔", checkList: TOWER_ALL_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER },
-        { name: "陣營", checkList: CAMP_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_CAMP },
-        { name: "野外", checkList: WILD_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_WILD },
-        { name: "奧塔監視者", checkList: TOWER_WATCHER_BOSS_IDS, webhookUrl: this.env.DISCORD_WEBHOOK_TOWER_WATCHER },
-        { name: "all", checkList: [...ELDER_BOSS_IDS, ...CAMP_BOSS_IDS, ...TOWER_BOSS_IDS, ...WILD_BOSS_IDS], webhookUrl: this.env.DISCORD_WEBHOOK_ALL }
-      ];
+      const bossReportMap = WEBHOOK_CATEGORIES.map(c => ({
+        name: c.webhook.label || c.name,
+        checkList: c.ids,
+        webhookUrl: this.env[c.webhook.secret]
+      }));
 
       const titleMsg = "*** 重生輪迴時間刷新 ***\n";
 

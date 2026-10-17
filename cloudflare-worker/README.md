@@ -11,10 +11,10 @@
 1. **向下完全相容**：
    * 支援原 FastAPI 的所有 WebSocket 訊息格式與協議（`client_register`、`ping`/`pong`、`request_online_users`）。
    * 完整相容 WebRTC 信令交換（`offer`、`answer`、`candidate`、`chat_message`）。
-   * 支援原有的全域資料廣播（`Sync_Boss_Data`、`Boss_Death`）。
+   * 支援 `Boss_Death` 全域廣播；`Sync_Boss_Data` 只由伺服器發出，客戶端送來的會被忽略，避免舊版網頁整份覆蓋 Boss 清單。
 
 2. **原生持久化快取 (Persistence)**：
-   * 原本 Python 伺服器若重啟，記憶體中的 Boss 狀態便會遺失；在 Cloudflare Durable Objects 下，收到的 `Sync_Boss_Data` 會自動持久化儲存。
+   * 原本 Python 伺服器若重啟，記憶體中的 Boss 狀態便會遺失；在 Cloudflare Durable Objects 下，Boss 狀態會自動持久化儲存。
    * **新玩家上線即刻有資料**：即使主控發布端暫時離線，新進來的玩家連線後，Worker 會直接回覆快取的最新 Boss 死亡時間。
 
 3. **新增外部 REST API 介面**：

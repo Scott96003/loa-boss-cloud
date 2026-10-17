@@ -5,7 +5,7 @@
  * 負責：
  * 1. 集中管理所有客戶端的 WebSocket 連線
  * 2. 處理 WebRTC 信令轉發 (Offer / Answer / ICE Candidate)
- * 3. 處理 Boss 擊殺與同步資料全域廣播 (Sync_Boss_Data, Boss_Death)
+ * 3. 處理 Boss 擊殺全域廣播 (Boss_Death)；Sync_Boss_Data 只由伺服器發出
  * 4. 持久化最新 Boss 狀態 (即使發布者離線，新進來的玩家依然能立即取得最新資料)
  * 5. 提供 HTTP REST API 供外部直接查詢與注入 Boss 死亡資料
  */
@@ -13,7 +13,7 @@
 import defaultBossList from "./defaultBossList.json";
 
 const P2P_SIGNALING_TYPES = new Set(['offer', 'answer', 'candidate', 'chat_message']);
-const BROADCAST_MESSAGE_TYPES = new Set(['Sync_Boss_Data', 'Boss_Death', 'Ack_Sync']);
+const BROADCAST_MESSAGE_TYPES = new Set(['Boss_Death', 'Ack_Sync']);
 
 function parseTaiwanDate(dateStr) {
   if (!dateStr) return null;
@@ -1197,26 +1197,14 @@ export class BossRoom {
       return;
     }
 
-    // 5. 業務資料廣播 (Sync_Boss_Data / Boss_Death / Ack_Sync)
-    if (BROADCAST_MESSAGE_TYPES.has(messageType)) {
-      // 若收到全量同步資料，將其持久化保存
-      if (messageType === 'Sync_Boss_Data') {
-        if (Array.isArray(data.bossListData)) {
-          data.bossListData.forEach(b => syncBossLatestDeathAndEmblem(b));
-        }
-        this.mainData.bossListData = data.bossListData;
-        // 保留伺服器自行維護的 lastRefreshBossTime，避免前端舊值造成輪迴通知漏發或重複發送
-        const serverLastRefresh = this.mainData.config ? this.mainData.config.lastRefreshBossTime : undefined;
-        this.mainData.config = { ...data.config, lastRefreshBossTime: serverLastRefresh };
-        this.mainData.gateOpenTime = data.gateOpenTime;
-        this.mainData.gateCloseTime = data.gateCloseTime;
-        this.mainData.last_updated = new Date().toISOString();
-        // 寫入 Durable Object Storage
-        this.storage.put("mainData", this.mainData);
-        this.broadcast(JSON.stringify(data), ws);
-        return;
-      }
+    // 客戶端不得送出全量同步：Boss 清單由伺服器維護，避免舊版網頁整份覆蓋新 Boss
+    if (messageType === 'Sync_Boss_Data') {
+      console.warn('[WS_REJECT] 忽略客戶端送來的 Sync_Boss_Data');
+      return;
+    }
 
+    // 5. 業務資料廣播 (Boss_Death / Ack_Sync)
+    if (BROADCAST_MESSAGE_TYPES.has(messageType)) {
       // 若收到 Boss_Death，透過 processBossDeath 統一處理狀態更新、長老 Webhook 推播與廣播
       if (messageType === 'Boss_Death') {
         const deathInfo = data.deathInfo || data;

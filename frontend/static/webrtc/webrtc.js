@@ -262,7 +262,7 @@ const WebRTCClientModule = (function() {
                             }
                         }
                     }
-                    break;
+                    return;
                 case 'request_peer_presence':
                     if (signal.senderId !== this.clientId) {
                         const myUserForPing = (typeof DiscordAuth !== 'undefined' && DiscordAuth.getUser)
@@ -274,12 +274,12 @@ const WebRTCClientModule = (function() {
                             this.registerPresence(myUserForPing);
                         }
                     }
-                    break;
+                    return;
                 case 'online_users_update':
                     if (window.OnlineUsersManager && typeof window.OnlineUsersManager.updateUsers === 'function') {
                         window.OnlineUsersManager.updateUsers(signal.users, signal.count);
                     }
-                    break;
+                    return;
                 case 'online_users_list':
                     const userIds = signal.users || [];
                     if (signal.members && window.OnlineUsersManager && typeof window.OnlineUsersManager.updateUsers === 'function') {
@@ -306,17 +306,17 @@ const WebRTCClientModule = (function() {
                         console.log(`[${this.role}] WS已連線使用者`, userIds)
                         return;
                     }
-                    break;
+                    return;
                 case 'ping':
                     // 如果 Hub 收到 Spoke 的 Ping，可考慮回覆 Pong，但這裡保持不變
-                    break;
+                    return;
                 case 'pong':
                     // 🎯 修正：收到 Pong，表示連線活躍，清除超時計時器
                     if (signal.targetId == this.clientId) {
                         console.log("正確收到pong 回應, 清除計時器");
                         this.missPong = 0;
                     }                    
-                    break;
+                    return;
                 case 'Boss_Death':
                 case 'Sync_Boss_Data':
                     console.log(`[WS_DIRECT] 收到來自伺服器的全域廣播:`, signal.type);

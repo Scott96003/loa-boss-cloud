@@ -895,6 +895,31 @@ function check_Death(boss, newDeath) {
   return !isDuplicate;
 }
 
+// 語音清單在 Chrome 是非同步載入，首次呼叫 getVoices() 可能回傳空陣列，
+// 導致改用系統預設聲音（男女聲不一）。因此先快取並在 voiceschanged 時更新。
+var preferredVoice = null;
+
+/**
+ * 挑選固定的中文語音：依序找 Mei-Jia、Ting-Ting、Google 國語，最後才是任一 zh-TW 語音
+ */
+function pickPreferredVoice() {
+  if (!window.speechSynthesis) return;
+  var voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return;
+  preferredVoice =
+    voices.find(v => v.name.includes("Mei-Jia")) ||
+    voices.find(v => v.name.includes("Ting-Ting")) ||
+    voices.find(v => v.lang === "zh-TW" && v.name.includes("Google")) ||
+    voices.find(v => v.lang === "zh-TW") ||
+    voices.find(v => v.lang && v.lang.startsWith("zh")) ||
+    null;
+}
+
+if (window.speechSynthesis) {
+  pickPreferredVoice();
+  window.speechSynthesis.addEventListener("voiceschanged", pickPreferredVoice);
+}
+
 /**
  * 使用瀏覽器的語音合成功能朗讀文字
  * @param {string} text - 要朗讀的文字
@@ -908,20 +933,11 @@ function speak(text) {
     var synth = window.speechSynthesis;
     var utterance = new SpeechSynthesisUtterance(text);
 
-    // 取得所有可用語音
-    var voices = synth.getVoices();
-
-    // 尋找特定的語音（例如中文女聲）
-    // 你可以嘗試尋找名稱包含 "Mei-Jia" (系統), "Ting-Ting" (系統) 或 "Google 國語" (Chrome)
-    var selectedVoice = voices.find(voice =>
-      voice.name.includes("Mei-Jia") ||
-      voice.name.includes("Ting-Ting") ||
-      (voice.lang === 'zh-TW' && voice.name.includes("Google"))
-    );
-
-    if (selectedVoice) {
-      utterance.voice = selectedVoice;
+    if (!preferredVoice) pickPreferredVoice();
+    if (preferredVoice) {
+      utterance.voice = preferredVoice;
     }
+    utterance.lang = preferredVoice ? preferredVoice.lang : "zh-TW";
     var volume = slider.value / 100;
     utterance.volume = volume; // 設定音量
     if (volume <= 0) {
@@ -931,6 +947,28 @@ function speak(text) {
   } else {
     console.log("請輸入要說的文字");
   }
+}
+
+// 短時間內多隻 Boss 被擊殺時合併成一句，避免語音排隊連念
+var pendingKillNames = [];
+var killAnnounceTimer = null;
+var KILL_ANNOUNCE_DELAY = 1000;
+
+/**
+ * 收集擊殺通告，1 秒內進來的合併念「A、B、C 被討伐」
+ * @param {string} bossName - Boss 名稱
+ */
+function queueKillAnnouncement(bossName) {
+  if (!pendingKillNames.includes(bossName)) {
+    pendingKillNames.push(bossName);
+  }
+  if (killAnnounceTimer) return;
+  killAnnounceTimer = setTimeout(function () {
+    var names = pendingKillNames;
+    pendingKillNames = [];
+    killAnnounceTimer = null;
+    if (names.length) speak(names.join("、") + " 被討伐");
+  }, KILL_ANNOUNCE_DELAY);
 }
 
 /**

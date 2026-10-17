@@ -128,7 +128,7 @@ function updateBossData(bossData) {
         bossListData[index].emblem = boss.emblem;
         if (bossData.type == 0 && trackBossNames.includes(item.bossName)) {
           //發出死亡通告（僅限追蹤清單中的 Boss）
-          speak(item.bossName + "已被" + (newDeathEntry.emblem || "未知血盟") + "擊殺");
+          queueKillAnnouncement(item.bossName);
         }
         // 增加死亡訊息
         addMessage(bossData);

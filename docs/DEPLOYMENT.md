@@ -51,8 +51,8 @@
 │  ├─ /api/auth/*   Discord OAuth2 登入、頻道權限驗證          │
 │  ├─ /api/*        轉交 Durable Object                       │
 │  └─ /ws           WebSocket（Hibernation）                  │
-│        └─ BossRoom Durable Object（SQLite 儲存、整點 Alarm） │
-│              └─ Discord Webhook 推播（長老／塔／營地／野外／龍門）│
+│        └─ BossRoom Durable Object（SQLite 儲存、排程 Alarm） │
+│              └─ Discord Webhook 推播（長老／龍門）                │
 └──────────────────────────────▲────────────────────────────┘
                                │ HTTPS / WSS
                 ┌──────────────┴───────────────┐

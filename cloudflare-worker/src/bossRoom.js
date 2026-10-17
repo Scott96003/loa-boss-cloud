@@ -547,8 +547,14 @@ export class BossRoom {
       if (this.mainData.config?.lastElderRange === undefined) {
         await this.checkElderRangeRefresh();
       }
-      // 啟動時重新排程，確保長老區段更新與龍門關閉通知會送出
-      await this.scheduleNextAlarm();
+      // 沒有 Alarm 時才排程；已有 Alarm (可能正是喚醒本次的 Alarm) 不覆蓋，由 alarm() 結束時重新排程
+      try {
+        if (await this.storage.getAlarm() === null) {
+          await this.scheduleNextAlarm();
+        }
+      } catch (err) {
+        console.warn("[ALARM] 初始化 Alarm 失敗:", err);
+      }
     });
   }
 
@@ -1660,7 +1666,7 @@ export class BossRoom {
 
     if (isElder) {
       console.log(`🎯 [長老擊殺] 觸發魂塔長老 Discord Webhook 推播 (${deathInfo.bossName || bossIdNum})...`);
-      this.sendElderDiscordWebhook(deathInfo, matchedBoss);
+      await this.sendElderDiscordWebhook(deathInfo, matchedBoss);
     }
 
     // 5. 擊殺龍時開啟新的龍門週期並推送龍門 Webhook

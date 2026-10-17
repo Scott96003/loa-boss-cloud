@@ -37,11 +37,20 @@ if (!DISCORD_USER_TOKEN || DISCORD_USER_TOKEN === "your_discord_user_token_here"
 }
 
 const GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json";
+const GATEWAY_QUERY = "/?v=10&encoding=json";
 
 let ws = null;
 let heartbeatInterval = null;
 let lastSequence = null;
 let isReconnecting = false;
+// Resume 用：READY 時取得，重連時以 op 6 接回原 session，避免漏事件
+let sessionId = null;
+let resumeGatewayUrl = null;
+
+// 收到這些關閉代碼時 session 已失效，只能重新 Identify
+const NON_RESUMABLE_CLOSE_CODES = new Set([4007, 4009]);
+// 收到這些關閉代碼時重連也沒用 (Token 錯誤、權限不足等)
+const FATAL_CLOSE_CODES = new Set([4004, 4010, 4011, 4012, 4013, 4014]);
 
 function parseTaiwanDate(dateStr) {
   if (!dateStr) return null;
@@ -531,14 +540,18 @@ async function fetchAndSyncHistoricalMessages() {
 // --------------------------------------------------------------------------
 
 function connectGateway() {
-  console.log(`🔌 [連線] 正在連接 Discord Gateway (${GATEWAY_URL})...`);
-  ws = new WebSocket(GATEWAY_URL);
+  const resuming = Boolean(sessionId && resumeGatewayUrl);
+  const url = resuming ? `${resumeGatewayUrl.replace(/\/+$/, "")}${GATEWAY_QUERY}` : GATEWAY_URL;
+  console.log(`🔌 [連線] 正在連接 Discord Gateway (${url})${resuming ? "，將嘗試 Resume" : ""}...`);
+  const socket = new WebSocket(url);
+  ws = socket;
 
-  ws.on("open", () => {
+  socket.on("open", () => {
     console.log("🟢 [連線成功] 已連線至 Discord Gateway，等待 Hello 握手...");
   });
 
-  ws.on("message", async (raw) => {
+  socket.on("message", async (raw) => {
+    if (socket !== ws) return; // 舊連線殘留的訊息直接忽略
     try {
       const payload = JSON.parse(raw.toString());
       const { op, d, s, t } = payload;
@@ -553,7 +566,11 @@ function connectGateway() {
           const interval = d.heartbeat_interval;
           console.log(`💓 [心跳] 收到 Hello，心跳週期: ${interval} ms`);
           startHeartbeat(interval);
-          sendIdentify();
+          if (resuming) {
+            sendResume();
+          } else {
+            sendIdentify();
+          }
           break;
         }
 
@@ -569,11 +586,22 @@ function connectGateway() {
           break;
         }
 
-        // Opcode 7 或 9: 需重新連線
-        case 7:
+        // Opcode 7: Discord 要求重連，保留 session 以便 Resume
+        case 7: {
+          console.warn("🔄 [重連] 收到 Opcode 7 (Discord 要求重連)，將以 Resume 接回 session...");
+          reconnect({ resume: true });
+          break;
+        }
+
+        // Opcode 9: Invalid Session，d 為 true 表示仍可 Resume
         case 9: {
-          console.warn(`🔄 [重連] 收到 Opcode ${op}，準備重新建立連線...`);
-          reconnect();
+          if (d === true) {
+            console.warn("🔄 [重連] 收到 Opcode 9 (Session 無效但可 Resume)，準備重新連線...");
+            reconnect({ resume: true });
+          } else {
+            console.warn("🔄 [重連] 收到 Opcode 9 (Session 已失效)，將重新 Identify...");
+            reconnect({ resume: false });
+          }
           break;
         }
       }
@@ -582,12 +610,24 @@ function connectGateway() {
     }
   });
 
-  ws.on("close", (code, reason) => {
-    console.warn(`⚠️ [連線關閉] 代碼: ${code}, 原因: ${reason || "無"}`);
-    reconnect();
+  socket.on("close", (code, reason) => {
+    // 主動 terminate 舊連線 (例如收到 Opcode 7) 時，不再重複警告與重連
+    if (socket !== ws || socket.intentionalClose) {
+      console.log(`🔌 [連線關閉] 已主動關閉舊連線 (代碼: ${code})`);
+      return;
+    }
+    const reasonText = reason ? reason.toString() : "";
+    console.warn(`⚠️ [連線關閉] 代碼: ${code}, 原因: ${reasonText || "無"}`);
+
+    if (FATAL_CLOSE_CODES.has(code)) {
+      console.error(`❌ [連線關閉] 代碼 ${code} 為無法恢復的錯誤 (請檢查 Token 或權限)，停止重連。`);
+      if (heartbeatInterval) clearInterval(heartbeatInterval);
+      return;
+    }
+    reconnect({ resume: !NON_RESUMABLE_CLOSE_CODES.has(code) });
   });
 
-  ws.on("error", (err) => {
+  socket.on("error", (err) => {
     console.error("❌ [連線錯誤]:", err.message);
   });
 }
@@ -599,6 +639,18 @@ function startHeartbeat(interval) {
       ws.send(JSON.stringify({ op: 1, d: lastSequence }));
     }
   }, interval);
+}
+
+function sendResume() {
+  console.log(`🔁 [Resume] 正在以 session ${sessionId} (seq: ${lastSequence}) 發送 Resume 封包...`);
+  ws.send(JSON.stringify({
+    op: 6,
+    d: {
+      token: DISCORD_USER_TOKEN,
+      session_id: sessionId,
+      seq: lastSequence
+    }
+  }));
 }
 
 function sendIdentify() {
@@ -645,11 +697,18 @@ const recentPushedKills = new Map();
 
 function handleDispatchEvent(eventType, eventData) {
   if (eventType === "READY") {
+    sessionId = eventData.session_id || null;
+    resumeGatewayUrl = eventData.resume_gateway_url || null;
     console.log(`🎉 [驗證成功] 已成功登入 Discord 帳號: ${eventData.user.username}#${eventData.user.discriminator || "0"}`);
     console.log(`🎯 [監聽中] 正持續監聽擊殺頻道: ${TARGET_CHANNEL_ID}`);
     console.log(`🎯 [監聽中] 正持續監聽重啟頻道: ${REBOOT_CHANNEL_ID} (關鍵字: "${REBOOT_KEYWORD}")`);
     // 登入成功後，立刻非同步向 Discord API 檢查重啟與補齊歷史資料
     fetchAndSyncHistoricalMessages();
+    return;
+  }
+
+  if (eventType === "RESUMED") {
+    console.log("✅ [Resume 成功] 已接回原 session，斷線期間的事件將由 Discord 補送。");
     return;
   }
 
@@ -719,18 +778,25 @@ function handleDispatchEvent(eventType, eventData) {
   }
 }
 
-function reconnect() {
+function reconnect({ resume = true } = {}) {
   if (isReconnecting) return;
   isReconnecting = true;
 
+  if (!resume) {
+    sessionId = null;
+    resumeGatewayUrl = null;
+    lastSequence = null;
+  }
+
   if (heartbeatInterval) clearInterval(heartbeatInterval);
   if (ws) {
+    ws.intentionalClose = true;
     try {
       ws.terminate();
     } catch {}
   }
 
-  console.log("⏳ 5 秒後嘗試重新連線...");
+  console.log(`⏳ 5 秒後嘗試重新連線 (${resume && sessionId ? "Resume" : "Identify"})...`);
   setTimeout(() => {
     isReconnecting = false;
     connectGateway();

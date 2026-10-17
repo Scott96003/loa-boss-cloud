@@ -267,8 +267,6 @@ async function loadFromLocalStorage() {
     initializeRebootTime();
     initializeTrackBossNames()
 
-    config.lastRefreshBossTime = localStorage.getItem("lastRefreshBossTime") || 24;
-
     // 步驟 2: 載入並處理核心 Boss 資料
     const maxDeathTime = await loadAndInitializeBossData();
 

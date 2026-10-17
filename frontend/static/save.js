@@ -24,7 +24,6 @@ function actualSaveLogic() {
     // ----------------------------------------------------
     localStorage.setItem("messageList", JSON.stringify(config.messageList));
     localStorage.setItem("rebootTime", config.rebootTime.toISOString());
-    localStorage.setItem("lastRefreshBossTime", config.lastRefreshBossTime);
     localStorage.setItem("voiceCount", config.voiceCount);
     console.log("trackBossNames", trackBossNames);
     localStorage.setItem("trackBossNames", JSON.stringify(trackBossNames));

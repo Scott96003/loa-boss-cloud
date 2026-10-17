@@ -26,8 +26,6 @@ var trackBossNames = [];
 
 // 設定檔物件
 let config = {
-  // 紀錄下次需要更新 boss 輪迴時間的區間，預設為 24
-  lastRefreshBossTime: 24,
   // 設定重開機時間，預設為 '2024-01-04T12:00:00'
   rebootTime: new Date('2024-01-04T12:00:00'),
   // 訊息列表

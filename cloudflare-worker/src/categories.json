@@ -25,7 +25,7 @@
     "name": "奧塔監視者",
     "button": true,
     "webhook": { "secret": "DISCORD_WEBHOOK_TOWER_WATCHER" },
-    "ids": [46271]
+    "ids": [46271, 46269, 46270, 46272, 99507, 46278, 46277, 46279, 99508]
   },
   {
     "name": "野外重要Boss",

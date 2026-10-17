@@ -1414,5 +1414,157 @@
       "segments": []
     },
     "重生間隔": "08~13"
+  },
+  {
+    "id": "46269",
+    "bossName": "扭曲的潔尼斯女王-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "46270",
+    "bossName": "不幸的幻象眼魔-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "46272",
+    "bossName": "死亡的殭屍王-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "99507",
+    "bossName": "地獄的黑豹-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "46278",
+    "bossName": "不死的木乃伊王-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "46277",
+    "bossName": "冷酷的艾莉絲-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "46279",
+    "bossName": "闇黑的騎士范德-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
+  },
+  {
+    "id": "99508",
+    "bossName": "不滅的巫妖-監視者",
+    "respawnTime": "5",
+    "areas": [
+      "傲慢之塔 Tower of Insolence"
+    ],
+    "countMode": "unfixed",
+    "death": "2025-10-31 05:00",
+    "deathList": [],
+    "emblem": "",
+    "DefaultRespawnTime": "2025-10-31T05:00:00.000Z",
+    "respawnCount": 0,
+    "result": {
+      "rebornCount": 0,
+      "segments": []
+    },
+    "重生間隔": "08~13"
   }
 ]

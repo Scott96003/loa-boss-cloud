@@ -42,27 +42,11 @@ if (!debug) {
 const throttledRefresh = throttle(refresh, 500);
 
 /**
- * 根據 boss 物件的 id 獲取需要擊殺的次數
+ * 取得 boss 每一輪需要擊殺的次數，由 Worker 清單的 bossCount 欄位設定，預設 1
  * @param {object} obj - boss 物件
  * @returns {number} - 需要擊殺的次數
  */
-const getBossCount = (obj) => {
-  let needBossCount = 1; // 假設初始值為 1
-
-  // 根據 boss id 處理例外情況
-  if (obj.id === "45545") {
-    needBossCount = 2;
-  }
-  if (obj.id === "45640" || obj.id === "45516") {
-    needBossCount = 3;
-  }
-
-  if (obj.id === "46220") {
-    needBossCount = 4;
-  }
-
-  return needBossCount
-};
+const getBossCount = (obj) => Number(obj.bossCount) || 1;
 
 /**
  * 是否為每輪數量不固定的 Boss (無法計算剩餘數目，改顯示本輪已擊殺數)

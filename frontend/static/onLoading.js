@@ -153,6 +153,29 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 
+/**
+ * 依 Worker /api/boss-data 回傳的 categories 產生分類篩選按鈕
+ * 插在「顯示全部」與「追蹤清單」之間，重複呼叫時會先移除舊的分類按鈕
+ * @param {Array<{name: string, ids: Array<number>}>} categories
+ */
+function renderCategoryButtons(categories) {
+    const buttonsContainer = document.getElementById("filterButtons");
+    if (!buttonsContainer || !Array.isArray(categories)) return;
+
+    const activeName = buttonsContainer.querySelector("button.active[data-category]")?.dataset.category;
+    buttonsContainer.querySelectorAll("button[data-category]").forEach(btn => btn.remove());
+
+    const trackBtn = document.getElementById("trackBossNamesBtn");
+    categories.forEach(category => {
+        const btn = document.createElement("button");
+        btn.dataset.category = category.name;
+        btn.setAttribute("data-boss-name", category.ids.join(","));
+        btn.textContent = category.name;
+        if (category.name === activeName) btn.classList.add("active");
+        buttonsContainer.insertBefore(btn, trackBtn);
+    });
+}
+
 function toggleTrackBossNames() {
     console.log("trackBossNames", trackBossNames);
     var filterBossIDs = bossListData

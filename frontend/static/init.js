@@ -140,6 +140,7 @@ async function loadAndInitializeBossData() {
             if (cloudJson && Array.isArray(cloudJson.bossListData) && cloudJson.bossListData.length > 0) {
                 console.log("☁️ 成功自 Cloudflare Worker 載入雲端最新 Boss 資料！共", cloudJson.bossListData.length, "隻");
                 bossListData = cloudJson.bossListData;
+                renderCategoryButtons(cloudJson.categories);
                 
                 // 防呆確保：每隻有死亡時間的 Boss 其 deathList 都至少有該筆紀錄供 Tooltip 顯示，並同步最新死亡紀錄
                 bossListData.forEach(b => {

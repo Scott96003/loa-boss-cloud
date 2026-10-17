@@ -1035,13 +1035,18 @@ function showTooltip(event, data) {
     const hasRecords = segment.deathList && segment.deathList.length > 0;
     // 只要有擊殺紀錄，或者在維護時間之後，就顯示該區段
     if (hasRecords || rebootTimeObj < segment.end) {
+      // 區段內時間由大到小排列
+      segment.deathList.sort((a, b) => new Date(b.death) - new Date(a.death));
+      // 第一個顯示的區段不畫上分隔線，其餘區段以分隔線明顯區隔
+      var segBorder = hasShownAnySegment ? "border-top: 1px solid rgba(169,199,223,0.35);" : "";
       hasShownAnySegment = true;
       var needReboot = (rebootTimeObj >= segment.start && rebootTimeObj < segment.end);
 
       msg += "<tr>";
-      msg += "<td style='vertical-align: top; padding-right: 8px; color: #a9c7df; white-space: nowrap;'>" + 
+      // 區段文字貼齊底部，對齊該區段最小（最早）的時間
+      msg += "<td style='vertical-align: bottom; padding: 4px 8px 4px 0; color: #a9c7df; white-space: nowrap;" + segBorder + "'>" +
              segment.start.getDate() + "(" + formatDateTime_Easy(segment.start, segment.end) + ")</td>";
-      msg += "<td>";
+      msg += "<td style='padding: 4px 0;" + segBorder + "'>";
       
       if (hasRecords) {
         segment.deathList.forEach(function (deathTime) {

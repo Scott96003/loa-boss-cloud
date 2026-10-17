@@ -124,14 +124,16 @@
 .dh-seg {
     display: flex;
     gap: 12px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--border, #2f3136);
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(169, 199, 223, 0.3);
 }
 
+/* 區段文字貼齊底部，對齊該區段最小（最早）的時間 */
 .dh-seg-time {
     flex-shrink: 0;
+    align-self: flex-end;
     width: 44px;
-    padding-top: 1px;
+    padding-bottom: 1px;
     font-size: 12px;
     font-variant-numeric: tabular-nums;
     color: var(--text-faint, #8e9297);

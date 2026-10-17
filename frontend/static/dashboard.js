@@ -522,43 +522,70 @@ function findLostBoss(bossData) {
     return { rebornCount: 1, segments: [] };
   }
   const bossDurationHour = bossData.respawnTime;
-  const deathTime = bossData.deathList;
   const segmentDuration = bossDurationHour * 60 * 60 * 1000;
 
-  const startPoint = getSpawnTime(config.rebootTime, bossDurationHour);
+  // 區段：從重開機後第一個重生時間起，每 respawnTime 小時一段，直到現在
+  // 只需要區段數與最新一段，一次掃描 deathList 即可 (保留 60 天時區段可達數千個)
+  const startMs = getSpawnTime(config.rebootTime, bossDurationHour).getTime();
+  const nowMs = Date.now();
+  const segmentCount = startMs < nowMs ? Math.ceil((nowMs - startMs) / segmentDuration) : 0;
+  const lastStart = startMs + (segmentCount - 1) * segmentDuration;
+  const lastEnd = lastStart + segmentDuration;
+  const rebootMs = new Date(config.rebootTime).getTime();
 
-  // 生成區段
-  const segments = [];
-  let currentSegmentStart = new Date(startPoint);
-
-  const currentTime = new Date()
-
-  while (currentSegmentStart < currentTime) {
-    const segmentEnd = new Date(currentSegmentStart.getTime() + segmentDuration);
-    let segmentTimes = bossData.deathList.filter(dl => new Date(dl.death) >= currentSegmentStart && new Date(dl.death) < segmentEnd);
-    segments.push({ start: currentSegmentStart, end: segmentEnd, deathList: segmentTimes });
-
-    currentSegmentStart = segmentEnd;
-  }
-  let matchingTimes = bossData.deathList.filter(dl => new Date(dl.death) > config.rebootTime);
-
-  segments.sort((a, b) => b.start - a.start);
+  let dieCount = 0;
+  let killedThisRound = 0;
+  bossData.deathList.forEach(dl => {
+    const t = new Date(dl.death).getTime();
+    if (t > rebootMs) dieCount++;
+    if (segmentCount > 0 && t >= lastStart && t < lastEnd) killedThisRound++;
+  });
 
   // 數量不固定：無法推算剩餘數目，改統計本輪 (最新區段) 已擊殺數
   if (isUnfixedCount(bossData)) {
-    const killedThisRound = segments.length > 0 ? segments[0].deathList.length : 0;
-    return { rebornCount: 0, killedThisRound: killedThisRound, segments: segments };
+    return { rebornCount: 0, killedThisRound: killedThisRound };
   }
 
-  var dieCount = matchingTimes.length
   var bossCount = getBossCount(bossData)
-  var aliveCount = (segments.length * bossCount) - dieCount;
+  var aliveCount = (segmentCount * bossCount) - dieCount;
 
   if (aliveCount > 3) {
     aliveCount = 3;
   }
 
-  return { rebornCount: aliveCount, segments: segments };
+  return { rebornCount: aliveCount };
+}
+
+/**
+ * 從 startPoint 起每 segmentDuration 切一段直到現在，只取最新 limit 段 (由新到舊)
+ * 每筆擊殺只解析一次並放入所屬區段，區段內維持 deathList 原本的順序
+ * @param {Array} deathList - 擊殺紀錄
+ * @param {number} startPoint - 第一段的起始時間 (毫秒)
+ * @param {number} segmentDuration - 每段長度 (毫秒)
+ * @param {number} limit - 最多保留的區段數
+ * @param {function} parseDeath - 將 death 字串轉成 Date
+ * @returns {Array<{start: Date, end: Date, deathList: Array}>}
+ */
+function buildRecentSegments(deathList, startPoint, segmentDuration, limit, parseDeath) {
+  const nowMs = Date.now();
+  const total = startPoint < nowMs ? Math.ceil((nowMs - startPoint) / segmentDuration) : 0;
+  const skip = Math.max(0, total - limit);
+  const firstStart = startPoint + skip * segmentDuration;
+  const count = total - skip;
+  const buckets = Array.from({ length: count }, () => []);
+  deathList.forEach(dl => {
+    const t = parseDeath(dl.death).getTime();
+    if (isNaN(t)) return;
+    const index = Math.floor((t - firstStart) / segmentDuration);
+    if (index >= 0 && index < count) buckets[index].push(dl);
+  });
+  return buckets
+    .map((list, i) => ({
+      start: new Date(firstStart + i * segmentDuration),
+      end: new Date(firstStart + (i + 1) * segmentDuration),
+      deathList: list
+    }))
+    .reverse();
 }
 
 /**
@@ -940,24 +967,8 @@ function showTooltip(event, data) {
   const baseStart = earliestDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const startPoint = getSpawnTime(baseStart, bossDurationHour).getTime() - segmentDuration;
 
-  // 生成區段
-  const segments = [];
-  let currentSegmentStart = new Date(startPoint);
-  const currentTime = new Date();
-
-  while (currentSegmentStart < currentTime) {
-    const segmentEnd = new Date(currentSegmentStart.getTime() + segmentDuration);
-    let matchingTimes = data.deathList.filter(dl => {
-      const d = new Date(dl.death);
-      return d >= currentSegmentStart && d < segmentEnd;
-    });
-    segments.push({ start: currentSegmentStart, end: segmentEnd, deathList: matchingTimes });
-    currentSegmentStart = segmentEnd;
-  }
-
-  segments.sort((a, b) => b.start - a.start);
-  // 放寬歷史區段上限至 100 個區間，確保 13、14 號紀錄能完整展現
-  const 需要顯示的 = segments.splice(0, 100);
+  // 生成區段：放寬歷史區段上限至 100 個區間，確保 13、14 號紀錄能完整展現
+  const 需要顯示的 = buildRecentSegments(data.deathList, startPoint, segmentDuration, 100, d => new Date(d));
 
   const rebootTimeObj = (config && config.rebootTime) ? new Date(config.rebootTime) : new Date(0);
 

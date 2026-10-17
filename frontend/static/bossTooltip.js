@@ -53,23 +53,11 @@ function buildDeathSegments_dh(data) {
   const baseStart = earliestDate || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const startPoint = getSpawnTime(baseStart, bossDurationHour).getTime() - segmentDuration;
 
-  const segments = [];
-  let currentSegmentStart = new Date(startPoint);
-  const currentTime = new Date();
-  while (currentSegmentStart < currentTime) {
-    const segmentEnd = new Date(currentSegmentStart.getTime() + segmentDuration);
-    const matchingTimes = data.deathList
-      .filter(dl => {
-        const d = parseDeathTime_dh(dl.death);
-        return d >= currentSegmentStart && d < segmentEnd;
-      })
-      .sort((a, b) => parseDeathTime_dh(b.death) - parseDeathTime_dh(a.death));
-    segments.push({ start: currentSegmentStart, end: segmentEnd, deathList: matchingTimes });
-    currentSegmentStart = segmentEnd;
-  }
-
-  segments.sort((a, b) => b.start - a.start);
-  return segments.splice(0, 100);
+  const segments = buildRecentSegments(data.deathList, startPoint, segmentDuration, 100, parseDeathTime_dh);
+  segments.forEach(segment => {
+    segment.deathList.sort((a, b) => parseDeathTime_dh(b.death) - parseDeathTime_dh(a.death));
+  });
+  return segments;
 }
 
 function rebootRowHtml_dh(rebootTimeObj) {

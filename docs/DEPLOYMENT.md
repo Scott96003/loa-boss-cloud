@@ -603,6 +603,9 @@ npx wrangler deployments list --config wrangler.toml
 npx wrangler rollback --config wrangler.toml            # 回到上一個版本
 ```
 
+- 存檔格式：`meta`（Boss 設定、設定值）＋ `deaths:<id>`（每隻 Boss 的擊殺明細），擊殺明細保留到伺服器重開機或最多 60 天。訊息區與剩餘數量都由擊殺明細即時產生，不另外儲存。
+- 舊版整份存檔 `mainData` 在第一次搬移後保留不刪。回滾到分開儲存之前的版本時，舊版程式會讀到搬移當下的資料（之後的擊殺不會出現）。
+
 ### 9.2 更新前端
 
 ```bash
@@ -661,7 +664,9 @@ sudo systemctl restart loa-listener
 | Worker 請求 | 100,000 次 | API 呼叫、WebSocket 建立連線 |
 | Durable Object 請求 | 100,000 次 | WebSocket 收到的訊息以 20:1 折算 |
 | Durable Object 執行時間 | 13,000 GB-s | 已使用 WebSocket Hibernation（`acceptWebSocket`），閒置連線不計時 |
-| Durable Object 儲存 | 5 GB（總量） | Boss 資料僅數 KB ~ 數 MB |
+| Durable Object 儲存 | 5 GB（總量）；單一 key 上限 2 MB | 擊殺明細保留 60 天約 3 MB，每隻 Boss 分開一個 key（最大約 250 KB） |
+| Durable Object 寫入 | 100,000 列 | 每筆擊殺寫入 2 列（meta + 該 Boss 的 deathList） |
+| Durable Object 讀取 | 5,000,000 列 | 物件喚醒時讀取約 73 列（meta + 每隻 Boss 一列） |
 | 靜態資源請求 | 不限、不計費 | 前端頁面、JS、CSS |
 
 - 免費方案超量時**不會扣款**，而是當日請求被拒絕（回 1027 / 429 錯誤），隔天 UTC 0 點重置。

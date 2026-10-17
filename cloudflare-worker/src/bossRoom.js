@@ -131,47 +131,42 @@ function isUnfixedCount(obj) {
 }
 
 /**
- * 依據伺服器重開機時間計算 Boss 的時間區段與存活數量 (findLostBoss)
+ * 依據伺服器重開機時間計算 Boss 的存活數量 (findLostBoss)
+ * 區段：從重開機後第一個重生時間起，每 respawnTime 小時一段，直到現在
+ * 只回傳數量，不保留區段明細 (保留期 60 天時區段可達數千個，存檔與傳輸都不需要)
  */
 function findLostBoss(bossData, rebootTimeInput, now = new Date()) {
   const bossDurationHour = parseFloat(bossData.respawnTime) || 1;
   const segmentDuration = bossDurationHour * 60 * 60 * 1000;
   const rebootTime = parseTaiwanDate(rebootTimeInput) || new Date(now.getTime() - 7 * 24 * 3600 * 1000);
 
-  const startPoint = getSpawnTime(rebootTime, bossDurationHour);
-  const segments = [];
-  let currentSegmentStart = new Date(startPoint);
+  const startMs = getSpawnTime(rebootTime, bossDurationHour).getTime();
+  const nowMs = now.getTime();
+  const segmentCount = startMs < nowMs ? Math.ceil((nowMs - startMs) / segmentDuration) : 0;
+  const lastStart = startMs + (segmentCount - 1) * segmentDuration;
+  const lastEnd = lastStart + segmentDuration;
 
-  while (currentSegmentStart < now) {
-    const segmentEnd = new Date(currentSegmentStart.getTime() + segmentDuration);
-    const segmentTimes = (bossData.deathList || []).filter(dl => {
-      const d = parseTaiwanDate(dl.death);
-      return d && d >= currentSegmentStart && d < segmentEnd;
-    });
-    segments.push({ start: currentSegmentStart, end: segmentEnd, deathList: segmentTimes });
-    currentSegmentStart = segmentEnd;
-  }
-
-  const matchingTimes = (bossData.deathList || []).filter(dl => {
+  let dieCount = 0;
+  let killedThisRound = 0;
+  (bossData.deathList || []).forEach(dl => {
     const d = parseTaiwanDate(dl.death);
-    return d && d > rebootTime;
+    if (!d) return;
+    const t = d.getTime();
+    if (t > rebootTime.getTime()) dieCount++;
+    if (segmentCount > 0 && t >= lastStart && t < lastEnd) killedThisRound++;
   });
-
-  segments.sort((a, b) => b.start.getTime() - a.start.getTime());
 
   // 數量不固定：無法推算剩餘數量，改統計本輪 (最新區段) 已擊殺數
   if (isUnfixedCount(bossData)) {
-    const killedThisRound = segments.length > 0 ? segments[0].deathList.length : 0;
-    return { rebornCount: 0, killedThisRound, segments };
+    return { rebornCount: 0, killedThisRound };
   }
 
-  const dieCount = matchingTimes.length;
   const bossCount = getBossCount(bossData);
-  let aliveCount = (segments.length * bossCount) - dieCount;
+  let aliveCount = (segmentCount * bossCount) - dieCount;
   if (aliveCount > 3) aliveCount = 3;
   if (aliveCount < 0) aliveCount = 0;
 
-  return { rebornCount: aliveCount, segments };
+  return { rebornCount: aliveCount };
 }
 
 /**
@@ -453,6 +448,41 @@ function calculateActiveStats(bossListData, ids) {
   return `${sumActive}/${sum}(${pct}%)`;
 }
 
+// 擊殺明細保留天數 (伺服器長期不重開時，剩餘數量需要重開後的完整擊殺紀錄)
+const RETENTION_DAYS = 60;
+// 訊息區最多保留的筆數 (由 deathList 產生，只影響顯示)
+const MAX_MESSAGES = 10000;
+
+// 存檔分開儲存，避免單一 key 超過 Durable Object 2 MB 上限：
+// - STORAGE_META_KEY：mainData 去掉 deathList、訊息區與區段計算結果
+// - STORAGE_DEATHS_PREFIX + id：每隻 Boss 的 deathList
+// - LEGACY_STORAGE_KEY：舊版整份存檔，沒有 meta 時才讀取並搬移；搬移後保留不刪，
+//   萬一 wrangler rollback 回舊版程式，仍可讀到搬移當下的資料
+const STORAGE_META_KEY = "meta";
+const STORAGE_DEATHS_PREFIX = "deaths:";
+const LEGACY_STORAGE_KEY = "mainData";
+const STORAGE_PUT_BATCH = 128;
+
+/**
+ * 由各 Boss 的 deathList 產生訊息區 (依時間排序，保留最新 MAX_MESSAGES 筆)
+ */
+function buildMessageList(bossListData) {
+  const messages = new Set();
+  (bossListData || []).forEach(b => {
+    (b.deathList || []).forEach(dl => {
+      if (!dl.death) return;
+      messages.add(formatKillMessage({
+        death: dl.death,
+        type: dl.type,
+        bossId: b.id,
+        bossName: dl.bossName || b.bossName,
+        emblem: dl.emblem
+      }));
+    });
+  });
+  return [...messages].sort((a, b) => a.slice(0, 16).localeCompare(b.slice(0, 16))).slice(-MAX_MESSAGES);
+}
+
 // 由 defaultBossList.json 維護的設定欄位，啟動時會同步到存檔 (死亡紀錄等執行期資料不受影響)
 // areas：受限區域 (例如傲慢之塔各樓層)，discord-listener 在受限區域內只接受 areas 列有該區域的 Boss
 const BOSS_DEFINITION_FIELDS = ["bossName", "respawnTime", "bossCount", "countMode", "areas"];
@@ -522,24 +552,12 @@ export class BossRoom {
       messageList: []
     };
 
+    // 各 Boss deathList 上次寫入時的內容，用來判斷哪些 Boss 需要重新寫入
+    this.savedDeathSignatures = new Map();
+
     // 初始化時從持久化儲存載入歷史資料
     this.state.blockConcurrencyWhile(async () => {
-      const savedData = await this.storage.get("mainData");
-      if (savedData && savedData.bossListData && savedData.bossListData.length > 0) {
-        this.mainData = { ...this.mainData, ...savedData };
-
-        // 存檔會整份取代預設清單，需補入新增的 Boss 並同步設定欄位
-        const { added, updated } = syncBossListWithDefaults(this.mainData.bossListData, defaultBossList);
-        if (added.length > 0) {
-          console.log(`[BOSS_LIST] 補入新 Boss ${added.length} 隻: ${added.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
-        }
-        if (updated.length > 0) {
-          console.log(`[BOSS_LIST] 同步 Boss 設定 ${updated.length} 隻: ${updated.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
-        }
-        if (added.length > 0 || updated.length > 0) {
-          await this.storage.put("mainData", this.mainData);
-        }
-      }
+      await this.loadMainData();
       try {
         const currentAlarm = await this.storage.getAlarm();
         if (currentAlarm === null) {
@@ -549,6 +567,91 @@ export class BossRoom {
         console.warn("[ALARM] 初始化 Alarm 失敗:", err);
       }
     });
+  }
+
+  /**
+   * 從持久化儲存載入 mainData (分開儲存格式；尚未搬移時讀取舊版整份存檔並搬移)
+   */
+  async loadMainData() {
+    let savedData = null;
+    let fromLegacy = false;
+
+    const meta = await this.storage.get(STORAGE_META_KEY);
+    if (meta && Array.isArray(meta.bossListData)) {
+      const deaths = await this.storage.list({ prefix: STORAGE_DEATHS_PREFIX });
+      meta.bossListData.forEach(b => {
+        const key = STORAGE_DEATHS_PREFIX + b.id;
+        b.deathList = Array.isArray(deaths.get(key)) ? deaths.get(key) : [];
+        this.savedDeathSignatures.set(String(b.id), JSON.stringify(b.deathList));
+      });
+      savedData = meta;
+    } else {
+      const legacy = await this.storage.get(LEGACY_STORAGE_KEY);
+      if (legacy && Array.isArray(legacy.bossListData) && legacy.bossListData.length > 0) {
+        savedData = legacy;
+        fromLegacy = true;
+      }
+    }
+
+    if (!savedData || savedData.bossListData.length === 0) return;
+    this.mainData = { ...this.mainData, ...savedData };
+
+    // 存檔會整份取代預設清單，需補入新增的 Boss 並同步設定欄位
+    const { added, updated } = syncBossListWithDefaults(this.mainData.bossListData, defaultBossList);
+    if (added.length > 0) {
+      console.log(`[BOSS_LIST] 補入新 Boss ${added.length} 隻: ${added.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
+    }
+    if (updated.length > 0) {
+      console.log(`[BOSS_LIST] 同步 Boss 設定 ${updated.length} 隻: ${updated.map(b => `${b.bossName}(${b.id})`).join(", ")}`);
+    }
+
+    // 訊息區與數量都由 deathList 重新產生
+    this.mainData.messageList = buildMessageList(this.mainData.bossListData);
+    if (!this.mainData.config) this.mainData.config = {};
+    this.mainData.config.messageList = this.mainData.messageList;
+    const rebootTime = this.mainData.config.rebootTime;
+    const now = new Date();
+    this.mainData.bossListData.forEach(b => refreshBossComputedFields(b, rebootTime, now));
+
+    if (fromLegacy || added.length > 0 || updated.length > 0) {
+      await this.saveMainData();
+    }
+    if (fromLegacy) {
+      console.log(`[STORAGE] 已將舊版整份存檔搬移為分開儲存 (${this.mainData.bossListData.length} 隻 Boss)，舊存檔保留供回滾使用`);
+    }
+  }
+
+  /**
+   * 寫入 mainData：meta 每次寫入，deathList 只寫入有變動的 Boss
+   */
+  async saveMainData() {
+    const { bossListData = [], messageList, config, ...rest } = this.mainData;
+    const { messageList: _configMessages, ...configWithoutMessages } = config || {};
+    const entries = {
+      [STORAGE_META_KEY]: {
+        ...rest,
+        config: configWithoutMessages,
+        bossListData: bossListData.map(({ deathList, result, ...boss }) => boss)
+      }
+    };
+
+    const changedSignatures = new Map();
+    bossListData.forEach(b => {
+      const deathList = Array.isArray(b.deathList) ? b.deathList : [];
+      const signature = JSON.stringify(deathList);
+      if (this.savedDeathSignatures.get(String(b.id)) !== signature) {
+        entries[STORAGE_DEATHS_PREFIX + b.id] = deathList;
+        changedSignatures.set(String(b.id), signature);
+      }
+    });
+
+    const keys = Object.keys(entries);
+    for (let i = 0; i < keys.length; i += STORAGE_PUT_BATCH) {
+      const batch = {};
+      keys.slice(i, i + STORAGE_PUT_BATCH).forEach(k => { batch[k] = entries[k]; });
+      await this.storage.put(batch);
+    }
+    changedSignatures.forEach((signature, id) => this.savedDeathSignatures.set(id, signature));
   }
 
   /**
@@ -748,27 +851,27 @@ export class BossRoom {
 
   /**
    * 清理過期資料：
-   * 1. 刪除超過 7 天前的資料 (即使重開機時間更久以前，也只保留 7 天)
+   * 1. 刪除超過 RETENTION_DAYS 天前的資料 (即使重開機時間更久以前，也只保留 RETENTION_DAYS 天)
    * 2. 刪除早於伺服器重啟時間的資料
    * 3. 取兩者「較晚/較接近現在」的時間點作為截止時間 (cutoffDate)
-   * 4. messageList 上限放寬至 10,000 筆
+   * 4. messageList 上限 MAX_MESSAGES 筆
    */
   cleanupOldData(now = new Date()) {
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const retentionStart = new Date(now.getTime() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
     const rebootDate = (this.mainData.config && this.mainData.config.rebootTime)
       ? parseTaiwanDate(this.mainData.config.rebootTime)
       : null;
 
-    // cutoffDate: 重開機時間 與 7天前 兩者看哪個比較靠近現在 (即兩者取較晚者)
-    let cutoffDate = sevenDaysAgo;
-    if (rebootDate && rebootDate > sevenDaysAgo) {
+    // cutoffDate: 重開機時間 與 RETENTION_DAYS 天前 兩者看哪個比較靠近現在 (即兩者取較晚者)
+    let cutoffDate = retentionStart;
+    if (rebootDate && rebootDate > retentionStart) {
       cutoffDate = rebootDate;
     }
 
     let clearedBossCount = 0;
     let clearedMsgCount = 0;
 
-    // 1. 清理 messageList 中早於 cutoffDate 的紀錄，並限制最多 10,000 筆
+    // 1. 清理 messageList 中早於 cutoffDate 的紀錄，並限制最多 MAX_MESSAGES 筆
     if (Array.isArray(this.mainData.messageList)) {
       const origLen = this.mainData.messageList.length;
       this.mainData.messageList = this.mainData.messageList.filter(msg => {
@@ -779,8 +882,8 @@ export class BossRoom {
         }
         return false;
       });
-      if (this.mainData.messageList.length > 10000) {
-        this.mainData.messageList = this.mainData.messageList.slice(-10000);
+      if (this.mainData.messageList.length > MAX_MESSAGES) {
+        this.mainData.messageList = this.mainData.messageList.slice(-MAX_MESSAGES);
       }
       clearedMsgCount = origLen - this.mainData.messageList.length;
     } else {
@@ -903,7 +1006,7 @@ export class BossRoom {
         });
         if (hasModified) {
           this.mainData.last_updated = new Date().toISOString();
-          this.storage.put("mainData", this.mainData);
+          await this.saveMainData();
         }
       }
 
@@ -938,12 +1041,12 @@ export class BossRoom {
         fullMessageMap.set(msg, msg);
       });
 
-      // 依照時間排序並保留最多 10,000 筆
+      // 依照時間排序並保留最多 MAX_MESSAGES 筆
       const sortedMessageList = Array.from(fullMessageMap.values()).sort((a, b) => {
         const ta = a.slice(0, 16);
         const tb = b.slice(0, 16);
         return ta.localeCompare(tb);
-      }).slice(-10000);
+      }).slice(-MAX_MESSAGES);
 
       this.mainData.messageList = sortedMessageList;
 
@@ -995,11 +1098,11 @@ export class BossRoom {
         }
         this.mainData.config.rebootTime = rebootDate.toISOString();
 
-        // 2. 執行過期與重啟前資料清理 (保留 7 天內且晚於重開機時間)
+        // 2. 執行過期與重啟前資料清理 (保留 RETENTION_DAYS 天內且晚於重開機時間)
         const { cutoffDate, clearedBossCount } = this.cleanupOldData();
 
         this.mainData.last_updated = new Date().toISOString();
-        await this.storage.put("mainData", this.mainData);
+        await this.saveMainData();
 
         // 4. 廣播給所有在線前端進行即時同步
         const rebootBroadcast = {
@@ -1053,7 +1156,7 @@ export class BossRoom {
 
         if (!body.dryRun && (result.removedDeathList.length > 0 || result.removedMessages.length > 0)) {
           this.mainData.last_updated = new Date().toISOString();
-          await this.storage.put("mainData", this.mainData);
+          await this.saveMainData();
           this.broadcast(JSON.stringify({
             type: "Sync_Boss_Data",
             bossListData: this.mainData.bossListData,
@@ -1461,7 +1564,7 @@ export class BossRoom {
    * 統一處理 Boss 死亡事件 (支援外部 REST API 與 WebSocket 來源)
    */
   async processBossDeath(deathInfo, sourceWs = null) {
-    // 每次處理擊殺時，自動維護並清理超過 7 天或早於重啟時間的舊資料
+    // 每次處理擊殺時，自動維護並清理超過 RETENTION_DAYS 天或早於重啟時間的舊資料
     const { cutoffDate } = this.cleanupOldData();
     const killDate = parseTaiwanDate(deathInfo.death);
 
@@ -1541,7 +1644,7 @@ export class BossRoom {
         refreshBossComputedFields(matchedBoss, this.mainData.config?.rebootTime, new Date());
       }
 
-      // 2. 自動維護最新 10,000 筆擊殺紀錄訊息 (供前端顯示)
+      // 2. 自動維護最新 MAX_MESSAGES 筆擊殺紀錄訊息 (供前端顯示)
       if (!this.mainData.messageList) this.mainData.messageList = [];
       const msgItem = formatKillMessage({
         death: deathInfo.death,
@@ -1554,8 +1657,8 @@ export class BossRoom {
       if (!this.mainData.messageList.includes(msgItem)) {
         this.mainData.messageList.push(msgItem);
       }
-      if (this.mainData.messageList.length > 10000) {
-        this.mainData.messageList = this.mainData.messageList.slice(-10000);
+      if (this.mainData.messageList.length > MAX_MESSAGES) {
+        this.mainData.messageList = this.mainData.messageList.slice(-MAX_MESSAGES);
       }
 
       if (!this.mainData.config) {
@@ -1568,7 +1671,7 @@ export class BossRoom {
       }
 
       this.mainData.last_updated = new Date().toISOString();
-      await this.storage.put("mainData", this.mainData);
+      await this.saveMainData();
     }
 
     // 3. 廣播給所有線上的 WebSocket 用戶端 (若由某前端發送，排除該發送端)
@@ -1613,7 +1716,7 @@ export class BossRoom {
 
     this.mainData.gateOpenTime = stillOpen ? openTime.toISOString() : null;
     this.mainData.gateCloseTime = closeTime.toISOString();
-    await this.storage.put("mainData", this.mainData);
+    await this.saveMainData();
 
     if (!stillOpen) {
       console.log(`[龍門] 擊殺時間過舊，龍門已於 ${closeTime.toISOString()} 關閉，略過開啟通知。`);
@@ -1640,7 +1743,7 @@ export class BossRoom {
     if (isNaN(closeTime.getTime()) || closeTime > new Date()) return;
 
     this.mainData.gateOpenTime = null;
-    await this.storage.put("mainData", this.mainData);
+    await this.saveMainData();
     await this.sendDragonGateWebhook(`⚠️ 龍門已關閉。\n關閉時間: ${formatTaiwanDateTime(closeTime)}`);
   }
 
@@ -1706,7 +1809,7 @@ export class BossRoom {
     if (lastRefresh === undefined || lastRefresh === null) {
       if (!this.mainData.config) this.mainData.config = {};
       this.mainData.config.lastRefreshBossTime = newRange;
-      await this.storage.put("mainData", this.mainData);
+      await this.saveMainData();
       return { triggered: false, initialized: true, newRange };
     }
 
@@ -1767,7 +1870,7 @@ export class BossRoom {
         senderId: "server"
       };
       this.broadcast(JSON.stringify(syncBroadcast));
-      await this.storage.put("mainData", this.mainData);
+      await this.saveMainData();
 
       return { triggered: true, newRange };
     }
